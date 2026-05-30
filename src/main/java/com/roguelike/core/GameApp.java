@@ -19,9 +19,7 @@ import com.roguelike.ui.MenuScreen;
 
 import javafx.scene.Group;
 import javafx.scene.control.Button;
-import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
@@ -113,21 +111,6 @@ public class GameApp extends GameApplication {
         FXGL.getGameScene().getRoot().getChildren().add(worldGroup);
         playerRect.toFront();
 
-        // Hidden TextField captures keys, bypasses Windows IME
-        inputGrabber = new TextField();
-        inputGrabber.setOpacity(0);
-        inputGrabber.setPrefSize(1, 1);
-        inputGrabber.setFocusTraversable(true);
-        inputGrabber.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            e.consume();
-            handleKey(e.getCode());
-        });
-        FXGL.getGameScene().getRoot().getChildren().add(inputGrabber);
-        javafx.application.Platform.runLater(() -> {
-            inputGrabber.requestFocus();
-            inputReady = true;
-        });
-
         // Mouse click to move (click adjacent tile)
         worldGroup.addEventHandler(MouseEvent.MOUSE_CLICKED, e -> {
             if (state != GameState.PLAYING) return;
@@ -163,7 +146,6 @@ public class GameApp extends GameApplication {
 
     @Override
     protected void onUpdate(double tpf) {
-        if (!inputReady) return;
         if (state != GameState.PLAYING) return;
         if (playerActed) {
             enemyTurns();
@@ -186,8 +168,6 @@ public class GameApp extends GameApplication {
         }
     }
 
-    private boolean inputReady;
-    private TextField inputGrabber;
 
     // --- Game flow ---
 
@@ -202,7 +182,6 @@ public class GameApp extends GameApplication {
     private void newGame() {
         MenuScreen.hide();
         GameOverScreen.hide();
-        if (inputGrabber != null) inputGrabber.requestFocus();
         seed = java.lang.System.currentTimeMillis();
         floor = 1;
         turns = 0;
