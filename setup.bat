@@ -5,72 +5,93 @@ echo   Roguelike Dungeon - One-Click Setup
 echo ========================================
 echo.
 
-:: Set JAVA_HOME
+:: Find JDK
 set "JAVA_HOME=C:\Program Files\Java\jdk-25.0.2"
-set "PATH=%JAVA_HOME%\bin;%PATH%"
-java -version 2>nul
-if %errorlevel% neq 0 (
+if not exist "%JAVA_HOME%\bin\java.exe" (
     echo ERROR: JDK not found at %JAVA_HOME%
-    echo Please install JDK 17+ from https://adoptium.net
+    echo Install JDK 17+ from https://adoptium.net
     pause & exit /b 1
 )
+set "PATH=%JAVA_HOME%\bin;%PATH%"
 
-:: Step 1: Build fat jar
-echo [1/4] Building fat jar ^(needs internet to download deps^)...
-call gradlew.bat build shadowJar
+:: Step 1: Build fat jar (includes FXGL, Gson - needs internet once)
+echo [1/3] Building fat jar ^(downloads dependencies, one-time only^)...
+call gradlew.bat build shadowJar 2>nul
 if %errorlevel% neq 0 (
-    echo.
-    echo Build failed. Trying to generate wrapper first...
-    call gradle wrapper --gradle-version 8.12
-    call gradlew.bat build shadowJar
-    if !errorlevel! neq 0 (
-        echo Build failed. Check errors above.
+    echo Generating Gradle wrapper...
+    if exist "%USERPROFILE%\.gradle\wrapper\dists\gradle-9.4.1-bin\arn2x92ynaizyzdaamcbpbhtj\gradle-9.4.1\bin\gradle.bat" (
+        call "%USERPROFILE%\.gradle\wrapper\dists\gradle-9.4.1-bin\arn2x92ynaizyzdaamcbpbhtj\gradle-9.4.1\bin\gradle.bat" wrapper --gradle-version 8.12
+    ) else (
+        echo Please install Gradle first: https://gradle.org/install/
         pause & exit /b 1
     )
+    call gradlew.bat build shadowJar
+    if !errorlevel! neq 0 (pause & exit /b 1)
 )
 
-:: Step 2: Create launcher script
+:: Step 2: Package as self-contained app (bundles JRE, no Java needed on target PC)
 echo.
-echo [2/4] Creating launcher...
-set "JAR_PATH=%~dp0build\libs\roguelike-dungeon-0.1.0.jar"
+echo [2/3] Creating portable app ^(bundles Java runtime^)...
+set "APP_DIR=%~dp0build\RoguelikeDungeon"
 
-:: VBS launcher - runs jar without console window
-echo Set WshShell = CreateObject("WScript.Shell") > "%APPDATA%\RoguelikeDungeon\launcher.vbs"
-echo WshShell.Run "javaw -jar ""%JAR_PATH%""", 0, False >> "%APPDATA%\RoguelikeDungeon\launcher.vbs"
-mkdir "%APPDATA%\RoguelikeDungeon" 2>nul
+:: Remove old build
+rmdir /s /q "%APP_DIR%" 2>nul
 
-:: Batch launcher as fallback
-echo @echo off > "%APPDATA%\RoguelikeDungeon\launcher.bat"
-echo cd /d "%~dp0" >> "%APPDATA%\RoguelikeDungeon\launcher.bat"
-echo start javaw -jar "%JAR_PATH%" >> "%APPDATA%\RoguelikeDungeon\launcher.bat"
+:: Use jpackage to create a self-contained app image
+call jpackage ^
+    --name "RoguelikeDungeon" ^
+    --input "build\libs" ^
+    --main-jar "roguelike-dungeon-0.1.0.jar" ^
+    --main-class "com.roguelike.core.GameApp" ^
+    --type app-image ^
+    --dest "build" ^
+    --app-version "0.1.0" ^
+    --vendor "rullerzhou" ^
+    --description "2D Pixel Roguelike Dungeon Crawler" ^
+    --win-console
 
-:: Step 3: Create Desktop shortcut
+if %errorlevel% neq 0 (
+    echo jpackage failed. Falling back to jar-only mode.
+    echo The app will still need Java installed.
+    goto :shortcut
+)
+
+:: Step 3: Create desktop shortcut to the .exe
 echo.
-echo [3/4] Creating desktop shortcut...
+echo [3/3] Creating desktop shortcut...
 set "DESKTOP=%USERPROFILE%\Desktop"
-set "SHORTCUT=%DESKTOP%\Roguelike Dungeon.lnk"
+set "EXE_PATH=%APP_DIR%\RoguelikeDungeon.exe"
 
 powershell -Command ^
-  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%SHORTCUT%'); ^
-   $s.TargetPath = 'javaw'; ^
-   $s.Arguments = '-jar \"%JAR_PATH%\"'; ^
-   $s.WorkingDirectory = '%~dp0'; ^
-   $s.IconLocation = '%JAVA_HOME%\bin\javaw.exe,0'; ^
-   $s.Description = 'Roguelike Dungeon - 2D Pixel Roguelike'; ^
+  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%DESKTOP%\Roguelike Dungeon.lnk'); ^
+   $s.TargetPath = '%EXE_PATH%'; ^
+   $s.WorkingDirectory = '%APP_DIR%'; ^
+   $s.Description = 'Roguelike Dungeon - Self-contained, no Java required'; ^
    $s.Save()"
 
-if exist "%SHORTCUT%" (
-    echo   Shortcut created on desktop!
-) else (
-    echo   Shortcut failed, using batch file...
-    copy /y "%APPDATA%\RoguelikeDungeon\launcher.bat" "%DESKTOP%\Roguelike Dungeon.bat" >nul
-)
+echo.
+echo ========================================
+echo   DONE! Desktop shortcut created.
+echo.
+echo   The app at: %APP_DIR%
+echo   Copy that entire folder to ANY Windows PC and run RoguelikeDungeon.exe!
+echo   ^(No Java, no Gradle needed - everything is bundled^)
+echo ========================================
+pause
+exit /b 0
 
-:: Step 4: Done
+:shortcut
 echo.
-echo [4/4] Done!
-echo.
-echo   Desktop shortcut: Roguelike Dungeon
-echo   Just double-click to play!
-echo.
+echo [3/3] Creating desktop shortcut ^(Java required mode^)...
+set "JAR_PATH=%~dp0build\libs\roguelike-dungeon-0.1.0.jar"
+set "DESKTOP=%USERPROFILE%\Desktop"
+
+powershell -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%DESKTOP%\Roguelike Dungeon.lnk'); ^
+   $s.TargetPath = 'javaw'; ^
+   $s.Arguments = '-jar \"%JAR_PATH%\"'; ^
+   $s.Description = 'Roguelike Dungeon'; ^
+   $s.Save()"
+
+echo   Done. Just double-click the desktop icon to play!
 pause
