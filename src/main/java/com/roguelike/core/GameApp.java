@@ -3,6 +3,7 @@ package com.roguelike.core;
 import com.almasb.fxgl.app.GameApplication;
 import com.almasb.fxgl.app.GameSettings;
 import com.almasb.fxgl.dsl.FXGL;
+import com.almasb.fxgl.input.UserAction;
 
 import com.roguelike.ai.BehaviorTree;
 import com.roguelike.ai.FovSystem;
@@ -17,10 +18,10 @@ import com.roguelike.ui.HudOverlay;
 import com.roguelike.ui.InventoryPanel;
 import com.roguelike.ui.MenuScreen;
 
-import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.Group;
 import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,9 +48,13 @@ public class GameApp extends GameApplication {
     private boolean[][] explored;
     private boolean playerActed;
 
-    private Canvas canvas;
-    private GraphicsContext gfx;
+    private Group worldGroup;
+    private Rectangle[][] tileRects;
+    private Rectangle playerRect;
+    private final List<Rectangle> enemyRects = new ArrayList<>();
     private static final int TILESIZE = 32;
+    private static final int COLS = GameConfig.SCREEN_WIDTH / TILESIZE;
+    private static final int ROWS = GameConfig.SCREEN_HEIGHT / TILESIZE;
 
     @Override
     protected void initSettings(GameSettings settings) {
@@ -61,17 +66,30 @@ public class GameApp extends GameApplication {
 
     @Override
     protected void initInput() {
-        FXGL.onKeyDown(KeyCode.W, "move-up", () -> tryMove(0, -1));
-        FXGL.onKeyDown(KeyCode.S, "move-down", () -> tryMove(0, 1));
-        FXGL.onKeyDown(KeyCode.A, "move-left", () -> tryMove(-1, 0));
-        FXGL.onKeyDown(KeyCode.D, "move-right", () -> tryMove(1, 0));
-        FXGL.onKeyDown(KeyCode.I, "inventory", this::toggleInventory);
-        FXGL.onKeyDown(KeyCode.ESCAPE, "pause", this::togglePause);
+        var input = FXGL.getInput();
+        input.addAction(new UserAction("Up") {
+            @Override protected void onAction() { tryMove(0, -1); }
+        }, KeyCode.W);
+        input.addAction(new UserAction("Down") {
+            @Override protected void onAction() { tryMove(0, 1); }
+        }, KeyCode.S);
+        input.addAction(new UserAction("Left") {
+            @Override protected void onAction() { tryMove(-1, 0); }
+        }, KeyCode.A);
+        input.addAction(new UserAction("Right") {
+            @Override protected void onAction() { tryMove(1, 0); }
+        }, KeyCode.D);
+        input.addAction(new UserAction("Inventory") {
+            @Override protected void onAction() { toggleInventory(); }
+        }, KeyCode.I);
+        input.addAction(new UserAction("Pause") {
+            @Override protected void onAction() { togglePause(); }
+        }, KeyCode.ESCAPE);
     }
 
     @Override
     protected void initGame() {
-        FXGL.getGameScene().setBackgroundColor(Color.BLACK);
+        FXGL.getGameScene().setBackgroundColor(Color.rgb(20, 20, 30));
         systems = new SystemManager();
         fov = new FovSystem(GameConfig.FOV_RADIUS);
         inventory = new InventoryPanel();
@@ -79,11 +97,30 @@ public class GameApp extends GameApplication {
         inventory.setOnDrop(this::dropItem);
         hud = new HudOverlay();
 
-        canvas = new Canvas(GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT);
-        gfx = canvas.getGraphicsContext2D();
-        canvas.setLayoutX(0);
-        canvas.setLayoutY(0);
-        FXGL.getGameScene().getRoot().getChildren().add(canvas);
+        // Create world rendering group
+        worldGroup = new Group();
+        tileRects = new Rectangle[ROWS][COLS];
+        for (int y = 0; y < ROWS; y++) {
+            for (int x = 0; x < COLS; x++) {
+                var r = new Rectangle(TILESIZE - 1, TILESIZE - 1);
+                r.setX(x * TILESIZE);
+                r.setY(y * TILESIZE);
+                r.setVisible(false);
+                tileRects[y][x] = r;
+                worldGroup.getChildren().add(r);
+            }
+        }
+        playerRect = new Rectangle(TILESIZE - 3, TILESIZE - 3, Color.LIMEGREEN);
+        playerRect.setX((COLS / 2) * TILESIZE + 1);
+        playerRect.setY((ROWS / 2) * TILESIZE + 1);
+        playerRect.setVisible(false);
+
+        worldGroup.getChildren().add(playerRect);
+        worldGroup.setVisible(false);
+        FXGL.getGameScene().getRoot().getChildren().add(worldGroup);
+
+        // Player on top
+        playerRect.toFront();
 
         showMenu();
     }
@@ -106,7 +143,7 @@ public class GameApp extends GameApplication {
         state = GameState.MENU;
         GameOverScreen.hide();
         hud.remove();
-        canvas.setVisible(false);
+        worldGroup.setVisible(false);
         MenuScreen.show(this::newGame, () -> loadGame("auto"), () -> FXGL.getGameController().exit());
     }
 
@@ -125,6 +162,10 @@ public class GameApp extends GameApplication {
         items.clear();
         all.clear();
 
+        // Remove old enemy rects
+        for (var r : enemyRects) worldGroup.getChildren().remove(r);
+        enemyRects.clear();
+
         generator = new DungeonGenerator(GameConfig.MAP_WIDTH, GameConfig.MAP_HEIGHT, seed + floor);
         dungeon = generator.generate(GameConfig.MAX_BSP_DEPTH);
         pathFinder = new PathFinder(dungeon);
@@ -137,9 +178,18 @@ public class GameApp extends GameApplication {
         spawnEnemies();
         spawnItems();
 
+        // Create enemy rects
+        for (int i = 0; i < enemies.size(); i++) {
+            var r = new Rectangle(TILESIZE - 5, TILESIZE - 5, Color.RED);
+            r.setVisible(false);
+            enemyRects.add(r);
+            worldGroup.getChildren().add(r);
+        }
+
         visible = fov.compute(dungeon, playerX(), playerY());
         markExplored();
-        canvas.setVisible(true);
+        worldGroup.setVisible(true);
+        playerRect.toFront();
 
         state = GameState.PLAYING;
         playerActed = false;
@@ -148,26 +198,23 @@ public class GameApp extends GameApplication {
     }
 
     private void renderAll() {
-        gfx.setFill(Color.BLACK);
-        gfx.fillRect(0, 0, GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT);
+        int offsetX = playerX() - COLS / 2;
+        int offsetY = playerY() - ROWS / 2;
 
-        int cols = GameConfig.SCREEN_WIDTH / TILESIZE;
-        int rows = GameConfig.SCREEN_HEIGHT / TILESIZE;
-        int offsetX = playerX() - cols / 2;
-        int offsetY = playerY() - rows / 2;
-
-        for (int sy = 0; sy < rows; sy++) {
-            for (int sx = 0; sx < cols; sx++) {
+        for (int sy = 0; sy < ROWS; sy++) {
+            for (int sx = 0; sx < COLS; sx++) {
                 int mx = offsetX + sx;
                 int my = offsetY + sy;
-                if (mx < 0 || mx >= GameConfig.MAP_WIDTH || my < 0 || my >= GameConfig.MAP_HEIGHT) continue;
+                var r = tileRects[sy][sx];
 
-                boolean vis = visible[my][mx];
-                boolean exp = explored[my][mx];
+                if (mx < 0 || mx >= GameConfig.MAP_WIDTH || my < 0 || my >= GameConfig.MAP_HEIGHT) {
+                    r.setVisible(false);
+                    continue;
+                }
 
-                Color c;
-                if (vis) {
-                    c = switch (dungeon[my][mx]) {
+                if (visible[my][mx]) {
+                    r.setVisible(true);
+                    r.setFill(switch (dungeon[my][mx]) {
                         case WALL -> Color.rgb(60, 60, 65);
                         case FLOOR -> Color.rgb(50, 45, 38);
                         case CORRIDOR -> Color.rgb(42, 37, 32);
@@ -175,52 +222,40 @@ public class GameApp extends GameApplication {
                         case STAIRS_DOWN, STAIRS_UP -> Color.rgb(180, 160, 30);
                         case WATER -> Color.rgb(20, 60, 100);
                         default -> Color.BLACK;
-                    };
-                } else if (exp) {
-                    c = Color.rgb(30, 27, 25);
+                    });
+                } else if (explored[my][mx]) {
+                    r.setVisible(true);
+                    r.setFill(Color.rgb(30, 27, 25));
                 } else {
-                    continue;
+                    r.setVisible(false);
                 }
-
-                gfx.setFill(c);
-                gfx.fillRect(sx * TILESIZE, sy * TILESIZE, TILESIZE - 1, TILESIZE - 1);
             }
         }
 
-        // Player
-        int px = playerX() - offsetX;
-        int py = playerY() - offsetY;
-        gfx.setFill(Color.LIMEGREEN);
-        gfx.fillRect(px * TILESIZE + 2, py * TILESIZE + 2, TILESIZE - 5, TILESIZE - 5);
+        // Player always at center
+        playerRect.setVisible(true);
 
         // Enemies
-        for (var e : enemies) {
+        for (int i = 0; i < enemyRects.size(); i++) {
+            if (i >= enemies.size()) {
+                enemyRects.get(i).setVisible(false);
+                continue;
+            }
+            var e = enemies.get(i);
             var ep = e.get(PositionComponent.class);
-            if (ep == null) continue;
-            if (!visible[ep.y()][ep.x()]) continue;
-            int ex = ep.x() - offsetX;
-            int ey = ep.y() - offsetY;
-            if (ex < 0 || ex >= cols || ey < 0 || ey >= rows) continue;
-            var ec = e.get(EnemyComponent.class);
-            Color c = switch (ec != null ? ec.type() : null) {
-                case SLIME -> Color.LIMEGREEN.brighter();
-                case SKELETON -> Color.WHITE;
-                case BAT -> Color.PURPLE;
-                default -> Color.RED;
-            };
-            gfx.setFill(c);
-            gfx.fillOval(ex * TILESIZE + 2, ey * TILESIZE + 2, TILESIZE - 5, TILESIZE - 5);
-        }
-
-        // Items
-        for (var item : items) {
-            var ip = item.get(PositionComponent.class);
-            if (ip == null || !visible[ip.y()][ip.x()]) continue;
-            int ix = ip.x() - offsetX;
-            int iy = ip.y() - offsetY;
-            if (ix < 0 || ix >= cols || iy < 0 || iy >= rows) continue;
-            gfx.setFill(Color.GOLD);
-            gfx.fillRect(ix * TILESIZE + 6, iy * TILESIZE + 6, TILESIZE - 12, TILESIZE - 12);
+            if (ep == null || !visible[ep.y()][ep.x()]) {
+                enemyRects.get(i).setVisible(false);
+                continue;
+            }
+            int sx = ep.x() - offsetX;
+            int sy = ep.y() - offsetY;
+            if (sx < 0 || sx >= COLS || sy < 0 || sy >= ROWS) {
+                enemyRects.get(i).setVisible(false);
+                continue;
+            }
+            enemyRects.get(i).setX(sx * TILESIZE + 1);
+            enemyRects.get(i).setY(sy * TILESIZE + 1);
+            enemyRects.get(i).setVisible(true);
         }
     }
 
@@ -461,7 +496,7 @@ public class GameApp extends GameApplication {
     private void gameOver() {
         state = GameState.GAME_OVER;
         hud.remove();
-        canvas.setVisible(false);
+        worldGroup.setVisible(false);
         GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu);
     }
 
