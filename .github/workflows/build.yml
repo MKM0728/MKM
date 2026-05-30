@@ -1,4 +1,4 @@
-name: Build
+name: Build & Release
 
 on:
   push:
@@ -13,14 +13,33 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'liberica'
-          java-package: 'jdk+fx'
+          distribution: 'temurin'
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.9'
-      - name: Compile
-        run: gradle compileJava --info 2>&1 | tail -100
-      - name: Test
-        run: gradle test --stacktrace 2>&1
-      - name: Package
-        run: gradle fatJar --stacktrace 2>&1
+      - run: gradle test fatJar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roguelike-dungeon-jar
+          path: build/libs/roguelike-dungeon-*.jar
+
+  package-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+      - run: gradle fatJar
+      - run: |
+          jpackage --name RoguelikeDungeon --input build\libs --main-jar roguelike-dungeon-0.1.0.jar --main-class com.roguelike.core.GameApp --type app-image --dest build\dist --app-version 0.1.0 --vendor rullerzhou --win-console
+      - run: Compress-Archive -Path build\dist\RoguelikeDungeon\* -DestinationPath RoguelikeDungeon-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RoguelikeDungeon-Windows
+          path: RoguelikeDungeon-windows.zip
