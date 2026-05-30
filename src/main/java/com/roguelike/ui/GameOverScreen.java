@@ -9,16 +9,12 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 
-import static com.almasb.fxgl.dsl.FXGLForKtKt.getUIFactoryService;
-
 public final class GameOverScreen {
 
     private GameOverScreen() {}
 
     public static void show(int floorReached, int enemiesSlain, int turnsTaken,
                             Runnable onRestart, Runnable onMenu) {
-        var ui = getUIFactoryService();
-
         var title = new Text("YOU DIED");
         title.setFont(Font.font("Monospaced", 52));
         title.setFill(Color.RED);

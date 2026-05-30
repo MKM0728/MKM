@@ -9,15 +9,11 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 
-import static com.almasb.fxgl.dsl.FXGLForKtKt.getUIFactoryService;
-
 public final class MenuScreen {
 
     private MenuScreen() {}
 
     public static void show(Runnable onNewGame, Runnable onContinue, Runnable onQuit) {
-        var ui = getUIFactoryService();
-
         var title = new Text("Roguelike Dungeon");
         title.setFont(Font.font("Monospaced", 48));
         title.setFill(Color.ORANGE);
