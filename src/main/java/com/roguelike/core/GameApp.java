@@ -18,11 +18,15 @@ import com.roguelike.ui.InventoryPanel;
 import com.roguelike.ui.MenuScreen;
 
 import javafx.scene.Group;
+import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Font;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,7 +70,15 @@ public class GameApp extends GameApplication {
     }
 
     @Override
-    protected void initInput() {}
+    protected void initInput() {
+        // Keyboard fallback
+        FXGL.onKeyDown(KeyCode.W, "up", () -> tryMove(0, -1));
+        FXGL.onKeyDown(KeyCode.S, "down", () -> tryMove(0, 1));
+        FXGL.onKeyDown(KeyCode.A, "left", () -> tryMove(-1, 0));
+        FXGL.onKeyDown(KeyCode.D, "right", () -> tryMove(1, 0));
+        FXGL.onKeyDown(KeyCode.I, "inv", this::toggleInventory);
+        FXGL.onKeyDown(KeyCode.ESCAPE, "pause", this::togglePause);
+    }
 
     @Override
     protected void initGame() {
@@ -115,6 +127,36 @@ public class GameApp extends GameApplication {
             inputGrabber.requestFocus();
             inputReady = true;
         });
+
+        // Mouse click to move (click adjacent tile)
+        worldGroup.addEventHandler(MouseEvent.MOUSE_CLICKED, e -> {
+            if (state != GameState.PLAYING) return;
+            int tx = (int)(e.getX() / TILESIZE), ty = (int)(e.getY() / TILESIZE);
+            int dx = tx - COLS/2, dy = ty - ROWS/2;
+            if (Math.abs(dx) + Math.abs(dy) == 1) tryMove(dx, dy);
+        });
+
+        // On-screen D-pad (bypasses keyboard/IME entirely)
+        var dpad = new HBox(8);
+        dpad.setAlignment(javafx.geometry.Pos.CENTER);
+        dpad.setTranslateX(80);
+        dpad.setTranslateY(GameConfig.SCREEN_HEIGHT - 50);
+        for (var kv : new String[][]{{"▲","U"},{"▼","D"},{"◀","L"},{"▶","R"}}) {
+            var btn = new Button(kv[0]);
+            btn.setFont(Font.font(16));
+            btn.setStyle("-fx-background-color: #333; -fx-text-fill: #aaa; -fx-border-color: #555; -fx-min-width: 55; -fx-min-height: 40;");
+            String dir = kv[1];
+            btn.setOnAction(e -> {
+                switch (dir) {
+                    case "U" -> tryMove(0, -1);
+                    case "D" -> tryMove(0, 1);
+                    case "L" -> tryMove(-1, 0);
+                    case "R" -> tryMove(1, 0);
+                }
+            });
+            dpad.getChildren().add(btn);
+        }
+        FXGL.getGameScene().addUINode(dpad);
 
         showMenu();
     }
