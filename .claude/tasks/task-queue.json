@@ -1,0 +1,264 @@
+{
+  "version": "1.0",
+  "project": "Roguelike Dungeon Game",
+  "modules": {
+    "core": {
+      "owner": "architect",
+      "description": "Game loop, ECS framework, state management, FXGL integration",
+      "tasks": [
+        {
+          "id": "CORE-001",
+          "title": "Initialize FXGL project with Gradle",
+          "status": "completed",
+          "priority": "P0",
+          "assignee": "architect",
+          "dependencies": [],
+          "output": "src/main/java/com/roguelike/core/GameApp.java"
+        },
+        {
+          "id": "CORE-002",
+          "title": "Implement ECS Component base class",
+          "status": "completed",
+          "priority": "P0",
+          "assignee": "architect",
+          "dependencies": ["CORE-001"],
+          "output": "src/main/java/com/roguelike/core/Component.java"
+        },
+        {
+          "id": "CORE-003",
+          "title": "Implement ECS Entity base class",
+          "status": "completed",
+          "priority": "P0",
+          "assignee": "architect",
+          "dependencies": ["CORE-002"],
+          "output": "src/main/java/com/roguelike/core/Entity.java"
+        },
+        {
+          "id": "CORE-004",
+          "title": "Implement ECS System base class and SystemManager",
+          "status": "completed",
+          "priority": "P0",
+          "assignee": "architect",
+          "dependencies": ["CORE-003"],
+          "output": "src/main/java/com/roguelike/core/System.java, SystemManager.java"
+        },
+        {
+          "id": "CORE-005",
+          "title": "Implement GameState enum and state machine",
+          "status": "completed",
+          "priority": "P1",
+          "assignee": "architect",
+          "dependencies": ["CORE-001"],
+          "output": "src/main/java/com/roguelike/core/GameState.java"
+        }
+      ]
+    },
+    "map": {
+      "owner": "dev-a",
+      "description": "BSP map generation, room/corridor logic, tile management",
+      "tasks": [
+        {
+          "id": "MAP-001",
+          "title": "Implement Tile and TileType enums",
+          "status": "completed",
+          "priority": "P0",
+          "assignee": "dev-a",
+          "dependencies": [],
+          "output": "src/main/java/com/roguelike/map/Tile.java, TileType.java"
+        },
+        {
+          "id": "MAP-002",
+          "title": "Implement BSP tree node for map generation",
+          "status": "completed",
+          "priority": "P1",
+          "assignee": "dev-a",
+          "dependencies": ["MAP-001"],
+          "output": "src/main/java/com/roguelike/map/BspNode.java"
+        },
+        {
+          "id": "MAP-003",
+          "title": "Implement DungeonGenerator with room carving",
+          "status": "completed",
+          "priority": "P1",
+          "assignee": "dev-a",
+          "dependencies": ["MAP-002"],
+          "output": "src/main/java/com/roguelike/map/DungeonGenerator.java"
+        },
+        {
+          "id": "MAP-004",
+          "title": "Implement corridor connection between rooms",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-a",
+          "dependencies": ["MAP-003"],
+          "output": "src/main/java/com/roguelike/map/CorridorBuilder.java"
+        }
+      ]
+    },
+    "entity": {
+      "owner": "dev-a",
+      "description": "Player, enemies, items, components (Health, Position, etc.)",
+      "tasks": [
+        {
+          "id": "ENT-001",
+          "title": "Implement Position and Velocity components",
+          "status": "completed",
+          "priority": "P0",
+          "assignee": "dev-a",
+          "dependencies": ["CORE-002"],
+          "output": "src/main/java/com/roguelike/entity/PositionComponent.java"
+        },
+        {
+          "id": "ENT-002",
+          "title": "Implement Health and CombatStats components",
+          "status": "completed",
+          "priority": "P0",
+          "assignee": "dev-a",
+          "dependencies": ["CORE-002"],
+          "output": "src/main/java/com/roguelike/entity/HealthComponent.java, CombatStatsComponent.java"
+        },
+        {
+          "id": "ENT-003",
+          "title": "Implement Player entity factory",
+          "status": "completed",
+          "priority": "P1",
+          "assignee": "dev-a",
+          "dependencies": ["ENT-001", "ENT-002", "CORE-003"],
+          "output": "src/main/java/com/roguelike/entity/PlayerFactory.java"
+        },
+        {
+          "id": "ENT-004",
+          "title": "Implement Enemy entity factory with 3 types",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-a",
+          "dependencies": ["ENT-001", "ENT-002", "CORE-003"],
+          "output": "src/main/java/com/roguelike/entity/EnemyFactory.java"
+        },
+        {
+          "id": "ENT-005",
+          "title": "Implement Item entity system (weapon/potion/scroll)",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-a",
+          "dependencies": ["ENT-001", "CORE-003"],
+          "output": "src/main/java/com/roguelike/entity/ItemFactory.java"
+        }
+      ]
+    },
+    "combat": {
+      "owner": "dev-b",
+      "description": "Turn-based combat, damage calculation, skill effects",
+      "tasks": [
+        {
+          "id": "CMB-001",
+          "title": "Implement DamageType enum and DamageCalculator",
+          "status": "completed",
+          "priority": "P1",
+          "assignee": "dev-b",
+          "dependencies": ["ENT-002"],
+          "output": "src/main/java/com/roguelike/combat/DamageCalculator.java"
+        },
+        {
+          "id": "CMB-002",
+          "title": "Implement TurnManager with initiative queue",
+          "status": "completed",
+          "priority": "P1",
+          "assignee": "dev-b",
+          "dependencies": ["CORE-005"],
+          "output": "src/main/java/com/roguelike/combat/TurnManager.java"
+        },
+        {
+          "id": "CMB-003",
+          "title": "Implement melee/ranged attack system",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-b",
+          "dependencies": ["CMB-001", "CMB-002"],
+          "output": "src/main/java/com/roguelike/combat/AttackSystem.java"
+        }
+      ]
+    },
+    "ai": {
+      "owner": "dev-b",
+      "description": "Enemy behavior trees, pathfinding (A*), FOV",
+      "tasks": [
+        {
+          "id": "AI-001",
+          "title": "Implement A* pathfinding algorithm",
+          "status": "completed",
+          "priority": "P1",
+          "assignee": "dev-b",
+          "dependencies": ["MAP-001"],
+          "output": "src/main/java/com/roguelike/ai/PathFinder.java"
+        },
+        {
+          "id": "AI-002",
+          "title": "Implement enemy behavior tree (chase/attack/wander)",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-b",
+          "dependencies": ["AI-001"],
+          "output": "src/main/java/com/roguelike/ai/BehaviorTree.java"
+        },
+        {
+          "id": "AI-003",
+          "title": "Implement field of view (FOV) system",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-b",
+          "dependencies": ["MAP-001"],
+          "output": "src/main/java/com/roguelike/ai/FovSystem.java"
+        }
+      ]
+    },
+    "ui": {
+      "owner": "dev-c",
+      "description": "HUD, inventory UI, menus, FXGL UI integration",
+      "tasks": [
+        {
+          "id": "UI-001",
+          "title": "Implement HUD overlay (HP bar, floor level, minimap)",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-c",
+          "dependencies": ["ENT-002", "MAP-003"],
+          "output": "src/main/java/com/roguelike/ui/HudOverlay.java"
+        },
+        {
+          "id": "UI-002",
+          "title": "Implement inventory UI panel",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-c",
+          "dependencies": ["ENT-005"],
+          "output": "src/main/java/com/roguelike/ui/InventoryPanel.java"
+        },
+        {
+          "id": "UI-003",
+          "title": "Implement main menu and game over screen",
+          "status": "completed",
+          "priority": "P3",
+          "assignee": "dev-c",
+          "dependencies": ["CORE-001"],
+          "output": "src/main/java/com/roguelike/ui/MenuScreen.java"
+        }
+      ]
+    },
+    "save": {
+      "owner": "dev-c",
+      "description": "Game state serialization/deserialization with JSON",
+      "tasks": [
+        {
+          "id": "SAV-001",
+          "title": "Implement SaveData DTO and SaveManager",
+          "status": "completed",
+          "priority": "P2",
+          "assignee": "dev-c",
+          "dependencies": ["CORE-005"],
+          "output": "src/main/java/com/roguelike/save/SaveManager.java"
+        }
+      ]
+    }
+  }
+}
