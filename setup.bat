@@ -16,7 +16,7 @@ set "PATH=%JAVA_HOME%\bin;%PATH%"
 
 :: Step 1: Build fat jar (includes FXGL, Gson - needs internet once)
 echo [1/3] Building fat jar ^(downloads dependencies, one-time only^)...
-call gradlew.bat build shadowJar 2>nul
+call gradlew.bat build fatJar 2>nul
 if %errorlevel% neq 0 (
     echo Generating Gradle wrapper...
     if exist "%USERPROFILE%\.gradle\wrapper\dists\gradle-9.4.1-bin\arn2x92ynaizyzdaamcbpbhtj\gradle-9.4.1\bin\gradle.bat" (
@@ -25,7 +25,7 @@ if %errorlevel% neq 0 (
         echo Please install Gradle first: https://gradle.org/install/
         pause & exit /b 1
     )
-    call gradlew.bat build shadowJar
+    call gradlew.bat build fatJar
     if !errorlevel! neq 0 (pause & exit /b 1)
 )
 

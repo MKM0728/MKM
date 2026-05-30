@@ -16,12 +16,12 @@ jobs:
           distribution: 'temurin'
       - uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '7.6.4'
-      - run: gradle test shadowJar
+          gradle-version: '8.9'
+      - run: gradle test fatJar
       - uses: actions/upload-artifact@v4
         with:
           name: jar
-          path: build/libs/*.jar
+          path: build/libs/roguelike-dungeon-*.jar
 
   package-windows:
     needs: build
@@ -34,8 +34,8 @@ jobs:
           distribution: 'temurin'
       - uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '7.6.4'
-      - run: gradle shadowJar
+          gradle-version: '8.9'
+      - run: gradle fatJar
       - run: |
           jpackage --name RoguelikeDungeon --input build\libs --main-jar roguelike-dungeon-0.1.0.jar --main-class com.roguelike.core.GameApp --type app-image --dest build\dist --app-version 0.1.0 --vendor rullerzhou --win-console
       - run: Compress-Archive -Path build\dist\RoguelikeDungeon\* -DestinationPath RoguelikeDungeon-windows.zip
