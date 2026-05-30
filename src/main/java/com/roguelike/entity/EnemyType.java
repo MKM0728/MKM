@@ -1,15 +1,18 @@
 package com.roguelike.entity;
 
 public enum EnemyType {
-    SLIME(15, 30, 5, 1, 4, 5),
-    SKELETON(25, 45, 8, 3, 6, 12),
-    BAT(10, 20, 6, 0, 9, 8);
+    SLIME(10, 20, 5, 0, 4, 5, 1.0, "GREEN", "slime"),
+    BAT(10, 20, 5, 0, 7, 10, 1.0, "RED", "bat"),
+    SKELETON(15, 30, 5, 0, 5, 12, 1.5, "PURPLE", "skeleton");
 
     private final int baseHp, maxBaseHp, baseAtk, baseDef, baseSpd, xpValue;
+    private final double moveSpeed;
+    private final String color, kind;
 
-    EnemyType(int hp, int maxHp, int atk, int def, int spd, int xp) {
+    EnemyType(int hp, int maxHp, int atk, int def, int spd, int xp, double speed, String color, String kind) {
         this.baseHp = hp; this.maxBaseHp = maxHp; this.baseAtk = atk;
         this.baseDef = def; this.baseSpd = spd; this.xpValue = xp;
+        this.moveSpeed = speed; this.color = color; this.kind = kind;
     }
 
     public int baseHp() { return baseHp; }
@@ -18,4 +21,7 @@ public enum EnemyType {
     public int baseDef() { return baseDef; }
     public int baseSpd() { return baseSpd; }
     public int xpValue() { return xpValue; }
+    public double moveSpeed() { return moveSpeed; }
+    public String color() { return color; }
+    public String kind() { return kind; }
 }
