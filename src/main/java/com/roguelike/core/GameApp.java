@@ -3,7 +3,6 @@ package com.roguelike.core;
 import com.almasb.fxgl.app.GameApplication;
 import com.almasb.fxgl.app.GameSettings;
 import com.almasb.fxgl.dsl.FXGL;
-import com.almasb.fxgl.input.UserAction;
 
 import com.roguelike.ai.BehaviorTree;
 import com.roguelike.ai.FovSystem;
@@ -65,27 +64,7 @@ public class GameApp extends GameApplication {
     }
 
     @Override
-    protected void initInput() {
-        var input = FXGL.getInput();
-        input.addAction(new UserAction("Up") {
-            @Override protected void onAction() { tryMove(0, -1); }
-        }, KeyCode.W);
-        input.addAction(new UserAction("Down") {
-            @Override protected void onAction() { tryMove(0, 1); }
-        }, KeyCode.S);
-        input.addAction(new UserAction("Left") {
-            @Override protected void onAction() { tryMove(-1, 0); }
-        }, KeyCode.A);
-        input.addAction(new UserAction("Right") {
-            @Override protected void onAction() { tryMove(1, 0); }
-        }, KeyCode.D);
-        input.addAction(new UserAction("Inventory") {
-            @Override protected void onAction() { toggleInventory(); }
-        }, KeyCode.I);
-        input.addAction(new UserAction("Pause") {
-            @Override protected void onAction() { togglePause(); }
-        }, KeyCode.ESCAPE);
-    }
+    protected void initInput() {}
 
     @Override
     protected void initGame() {
@@ -118,9 +97,25 @@ public class GameApp extends GameApplication {
         worldGroup.getChildren().add(playerRect);
         worldGroup.setVisible(false);
         FXGL.getGameScene().getRoot().getChildren().add(worldGroup);
-
-        // Player on top
         playerRect.toFront();
+
+        // Setup input after scene is ready
+        javafx.application.Platform.runLater(() -> {
+            var s = FXGL.getGameScene().getRoot().getScene();
+            if (s != null) {
+                s.setOnKeyPressed(e -> {
+                    if (state != GameState.PLAYING) return;
+                    switch (e.getCode()) {
+                        case W, UP -> tryMove(0, -1);
+                        case S, DOWN -> tryMove(0, 1);
+                        case A, LEFT -> tryMove(-1, 0);
+                        case D, RIGHT -> tryMove(1, 0);
+                        case I -> toggleInventory();
+                        case ESCAPE -> togglePause();
+                    }
+                });
+            }
+        });
 
         showMenu();
     }
