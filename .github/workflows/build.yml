@@ -14,12 +14,8 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Build & Test
-        run: |
-          chmod +x gradlew
-          ./gradlew build shadowJar --stacktrace --info
-      - name: Upload jar
-        uses: actions/upload-artifact@v4
+      - run: chmod +x gradlew && ./gradlew test shadowJar
+      - uses: actions/upload-artifact@v4
         with:
           name: jar
           path: build/libs/*.jar
@@ -33,15 +29,11 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Build fat jar
-        run: .\gradlew.bat shadowJar
-      - name: Package .exe
-        run: |
+      - run: .\gradlew.bat shadowJar
+      - run: |
           jpackage --name RoguelikeDungeon --input build\libs --main-jar roguelike-dungeon-0.1.0.jar --main-class com.roguelike.core.GameApp --type app-image --dest build\dist --app-version 0.1.0 --vendor rullerzhou --win-console
-      - name: ZIP
-        run: Compress-Archive -Path build\dist\RoguelikeDungeon\* -DestinationPath RoguelikeDungeon-windows.zip
-      - name: Upload exe
-        uses: actions/upload-artifact@v4
+      - run: Compress-Archive -Path build\dist\RoguelikeDungeon\* -DestinationPath RoguelikeDungeon-windows.zip
+      - uses: actions/upload-artifact@v4
         with:
           name: RoguelikeDungeon-Windows
           path: RoguelikeDungeon-windows.zip
