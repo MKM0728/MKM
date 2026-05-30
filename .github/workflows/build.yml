@@ -14,12 +14,14 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - uses: gradle/actions/setup-gradle@v3
-      - run: chmod +x gradlew && ./gradlew test shadowJar
-      - name: Upload fat jar
+      - name: Build & Test
+        run: |
+          chmod +x gradlew
+          ./gradlew build shadowJar --stacktrace --info
+      - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
-          name: roguelike-dungeon-jar
+          name: jar
           path: build/libs/*.jar
 
   package-windows:
@@ -31,25 +33,14 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - uses: gradle/actions/setup-gradle@v3
-      - run: .\gradlew.bat shadowJar
-      - name: Package standalone .exe
-        shell: powershell
+      - name: Build fat jar
+        run: .\gradlew.bat shadowJar
+      - name: Package .exe
         run: |
-          jpackage `
-            --name "RoguelikeDungeon" `
-            --input "build\libs" `
-            --main-jar "roguelike-dungeon-0.1.0.jar" `
-            --main-class "com.roguelike.core.GameApp" `
-            --type app-image `
-            --dest "build\dist" `
-            --app-version "0.1.0" `
-            --vendor "rullerzhou" `
-            --description "2D Pixel Roguelike" `
-            --win-console
+          jpackage --name RoguelikeDungeon --input build\libs --main-jar roguelike-dungeon-0.1.0.jar --main-class com.roguelike.core.GameApp --type app-image --dest build\dist --app-version 0.1.0 --vendor rullerzhou --win-console
       - name: ZIP
-        run: Compress-Archive -Path "build\dist\RoguelikeDungeon\*" -DestinationPath "RoguelikeDungeon-windows.zip"
-      - name: Upload .exe package
+        run: Compress-Archive -Path build\dist\RoguelikeDungeon\* -DestinationPath RoguelikeDungeon-windows.zip
+      - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
           name: RoguelikeDungeon-Windows
