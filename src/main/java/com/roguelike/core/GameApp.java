@@ -3,7 +3,7 @@ package com.roguelike.core;
 import com.almasb.fxgl.app.GameApplication;
 import com.almasb.fxgl.app.GameSettings;
 import com.almasb.fxgl.dsl.FXGL;
-import com.almasb.fxgl.input.UserAction;
+
 import com.roguelike.ai.BehaviorTree;
 import com.roguelike.ai.FovSystem;
 import com.roguelike.ai.PathFinder;
@@ -94,7 +94,7 @@ public class GameApp extends GameApplication {
     }
 
     private void newGame() {
-        seed = System.currentTimeMillis();
+        seed = java.lang.System.currentTimeMillis();
         floor = 1;
         turns = 0;
         enemiesSlain = 0;
@@ -347,7 +347,7 @@ public class GameApp extends GameApplication {
         try {
             SaveManager.save(player, floor, seed, slot);
         } catch (Exception e) {
-            System.err.println("Save failed: " + e.getMessage());
+            java.lang.System.err.println("Save failed: " + e.getMessage());
         }
     }
 
