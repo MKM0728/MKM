@@ -69,13 +69,27 @@ public class GameApp extends GameApplication {
 
     @Override
     protected void initInput() {
-        // Keyboard fallback
-        FXGL.onKeyDown(KeyCode.W, "up", () -> tryMove(0, -1));
-        FXGL.onKeyDown(KeyCode.S, "down", () -> tryMove(0, 1));
-        FXGL.onKeyDown(KeyCode.A, "left", () -> tryMove(-1, 0));
-        FXGL.onKeyDown(KeyCode.D, "right", () -> tryMove(1, 0));
-        FXGL.onKeyDown(KeyCode.I, "inv", this::toggleInventory);
-        FXGL.onKeyDown(KeyCode.ESCAPE, "pause", this::togglePause);
+        // AWT-level keyboard hook - bypasses JavaFX IME entirely
+        java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager()
+            .addKeyEventDispatcher(e -> {
+                if (e.getID() != java.awt.event.KeyEvent.KEY_PRESSED) return false;
+                if (state != GameState.PLAYING) return false;
+                switch (e.getKeyCode()) {
+                    case java.awt.event.KeyEvent.VK_W, java.awt.event.KeyEvent.VK_UP:
+                        tryMove(0, -1); return true;
+                    case java.awt.event.KeyEvent.VK_S, java.awt.event.KeyEvent.VK_DOWN:
+                        tryMove(0, 1); return true;
+                    case java.awt.event.KeyEvent.VK_A, java.awt.event.KeyEvent.VK_LEFT:
+                        tryMove(-1, 0); return true;
+                    case java.awt.event.KeyEvent.VK_D, java.awt.event.KeyEvent.VK_RIGHT:
+                        tryMove(1, 0); return true;
+                    case java.awt.event.KeyEvent.VK_I:
+                        toggleInventory(); return true;
+                    case java.awt.event.KeyEvent.VK_ESCAPE:
+                        togglePause(); return true;
+                }
+                return false;
+            });
     }
 
     @Override
@@ -140,6 +154,24 @@ public class GameApp extends GameApplication {
             dpad.getChildren().add(btn);
         }
         FXGL.getGameScene().addUINode(dpad);
+
+        // Setup keyboard via scene AFTER scene is ready
+        javafx.application.Platform.runLater(() -> {
+            var scene = FXGL.getGameScene().getRoot().getScene();
+            if (scene != null) {
+                scene.setOnKeyPressed(e -> {
+                    if (state != GameState.PLAYING) return;
+                    switch (e.getCode()) {
+                        case W, UP:    tryMove(0, -1); e.consume(); break;
+                        case S, DOWN:  tryMove(0, 1);  e.consume(); break;
+                        case A, LEFT:  tryMove(-1, 0); e.consume(); break;
+                        case D, RIGHT: tryMove(1, 0);  e.consume(); break;
+                        case I:        toggleInventory(); e.consume(); break;
+                        case ESCAPE:   togglePause(); e.consume(); break;
+                    }
+                });
+            }
+        });
 
         showMenu();
     }
@@ -548,6 +580,8 @@ public class GameApp extends GameApplication {
     private int clamp(int v, int min, int max) { return Math.max(min, Math.min(max, v)); }
 
     public static void main(String[] args) {
+        java.lang.System.setProperty("com.sun.javafx.ime", "disabled");
+        java.lang.System.setProperty("javafx.ime", "disabled");
         launch(args);
     }
 }
