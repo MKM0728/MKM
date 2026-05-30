@@ -18,7 +18,9 @@ import com.roguelike.ui.InventoryPanel;
 import com.roguelike.ui.MenuScreen;
 
 import javafx.scene.Group;
+import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
@@ -99,36 +101,27 @@ public class GameApp extends GameApplication {
         FXGL.getGameScene().getRoot().getChildren().add(worldGroup);
         playerRect.toFront();
 
+        // Hidden TextField captures keys, bypasses Windows IME
+        inputGrabber = new TextField();
+        inputGrabber.setOpacity(0);
+        inputGrabber.setPrefSize(1, 1);
+        inputGrabber.setFocusTraversable(true);
+        inputGrabber.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            e.consume();
+            handleKey(e.getCode());
+        });
+        FXGL.getGameScene().getRoot().getChildren().add(inputGrabber);
+        javafx.application.Platform.runLater(() -> {
+            inputGrabber.requestFocus();
+            inputReady = true;
+        });
+
         showMenu();
     }
 
     @Override
     protected void onUpdate(double tpf) {
-        if (!inputReady) {
-            var s = FXGL.getGameScene().getRoot().getScene();
-            if (s != null) {
-                s.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
-                    // Block IME from intercepting game keys
-                    if (e.getCode().isLetterKey() || e.getCode().isArrowKey() ||
-                        e.getCode() == KeyCode.ESCAPE || e.getCode() == KeyCode.I) {
-                        e.consume();
-                    }
-                    if (state != GameState.PLAYING) return;
-                    switch (e.getCode()) {
-                        case W, UP: tryMove(0, -1); break;
-                        case S, DOWN: tryMove(0, 1); break;
-                        case A, LEFT: tryMove(-1, 0); break;
-                        case D, RIGHT: tryMove(1, 0); break;
-                        case I: toggleInventory(); break;
-                        case ESCAPE: togglePause(); break;
-                    }
-                });
-                // Also block typed events (IME characters)
-                s.setOnKeyTyped(e -> e.consume());
-                inputReady = true;
-            }
-        }
-
+        if (!inputReady) return;
         if (state != GameState.PLAYING) return;
         if (playerActed) {
             enemyTurns();
@@ -139,8 +132,20 @@ public class GameApp extends GameApplication {
         }
     }
 
-    // Flag for deferred input setup
+    private void handleKey(KeyCode code) {
+        if (state != GameState.PLAYING) return;
+        switch (code) {
+            case W, UP -> tryMove(0, -1);
+            case S, DOWN -> tryMove(0, 1);
+            case A, LEFT -> tryMove(-1, 0);
+            case D, RIGHT -> tryMove(1, 0);
+            case I -> toggleInventory();
+            case ESCAPE -> togglePause();
+        }
+    }
+
     private boolean inputReady;
+    private TextField inputGrabber;
 
     // --- Game flow ---
 
@@ -155,8 +160,7 @@ public class GameApp extends GameApplication {
     private void newGame() {
         MenuScreen.hide();
         GameOverScreen.hide();
-        // Force focus to game scene
-        FXGL.getGameScene().getRoot().requestFocus();
+        if (inputGrabber != null) inputGrabber.requestFocus();
         seed = java.lang.System.currentTimeMillis();
         floor = 1;
         turns = 0;
