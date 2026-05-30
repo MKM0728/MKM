@@ -5,7 +5,7 @@ import java.util.Set;
 
 public enum Tile {
     VOID(' ', false, false, false),
-    WALL('#', false, true, true),
+    WALL('#', false, true, false),
     FLOOR('.', true, false, false),
     CORRIDOR(',', true, false, false),
     DOOR('+', true, true, true),

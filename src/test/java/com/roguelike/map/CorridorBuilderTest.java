@@ -49,7 +49,7 @@ class CorridorBuilderTest {
 
     @Test
     void placeDoorOnCorridor() {
-        grid[3][5] = Tile.CORRIDOR;
+        grid[5][3] = Tile.CORRIDOR;
         builder.placeDoorNear(4, 5);
         assertEquals(Tile.DOOR, grid[5][3], "Door should be placed on adjacent corridor");
     }
