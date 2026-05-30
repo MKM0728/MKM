@@ -43,15 +43,15 @@ public final class GameOverScreen {
 
         box = new VBox(25, title, stats, btnRestart, btnMenu);
         box.setAlignment(Pos.CENTER);
-        box.setTranslateX(FXGL.getAppWidth() / 2.0 - 150);
-        box.setTranslateY(FXGL.getAppHeight() / 2.0 - 150);
+        box.setLayoutX(FXGL.getAppWidth() / 2.0 - 150);
+        box.setLayoutY(FXGL.getAppHeight() / 2.0 - 150);
 
-        FXGL.getGameScene().addUINode(box);
+        FXGL.getGameScene().getRoot().getChildren().add(box);
     }
 
     public static void hide() {
         if (box != null) {
-            FXGL.getGameScene().removeUINode(box);
+            FXGL.getGameScene().getRoot().getChildren().remove(box);
             box = null;
         }
     }

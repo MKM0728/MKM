@@ -8,7 +8,6 @@ import com.roguelike.ai.BehaviorTree;
 import com.roguelike.ai.FovSystem;
 import com.roguelike.ai.PathFinder;
 import com.roguelike.combat.AttackSystem;
-import com.roguelike.combat.DamageType;
 import com.roguelike.entity.*;
 import com.roguelike.map.DungeonGenerator;
 import com.roguelike.map.Tile;
@@ -18,6 +17,8 @@ import com.roguelike.ui.HudOverlay;
 import com.roguelike.ui.InventoryPanel;
 import com.roguelike.ui.MenuScreen;
 
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
 
@@ -43,7 +44,12 @@ public class GameApp extends GameApplication {
     private int enemiesSlain;
     private long seed;
     private boolean[][] visible;
+    private boolean[][] explored;
     private boolean playerActed;
+
+    private Canvas canvas;
+    private GraphicsContext gfx;
+    private static final int TILESIZE = 32;
 
     @Override
     protected void initSettings(GameSettings settings) {
@@ -72,6 +78,13 @@ public class GameApp extends GameApplication {
         inventory.setOnUse(this::useItem);
         inventory.setOnDrop(this::dropItem);
         hud = new HudOverlay();
+
+        canvas = new Canvas(GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT);
+        gfx = canvas.getGraphicsContext2D();
+        canvas.setLayoutX(0);
+        canvas.setLayoutY(0);
+        FXGL.getGameScene().getRoot().getChildren().add(canvas);
+
         showMenu();
     }
 
@@ -81,6 +94,7 @@ public class GameApp extends GameApplication {
         if (playerActed) {
             enemyTurns();
             playerActed = false;
+            renderAll();
             updateHud();
             checkState();
         }
@@ -91,6 +105,8 @@ public class GameApp extends GameApplication {
     private void showMenu() {
         state = GameState.MENU;
         GameOverScreen.hide();
+        hud.remove();
+        canvas.setVisible(false);
         MenuScreen.show(this::newGame, () -> loadGame("auto"), () -> FXGL.getGameController().exit());
     }
 
@@ -113,6 +129,8 @@ public class GameApp extends GameApplication {
         dungeon = generator.generate(GameConfig.MAX_BSP_DEPTH);
         pathFinder = new PathFinder(dungeon);
 
+        explored = new boolean[GameConfig.MAP_HEIGHT][GameConfig.MAP_WIDTH];
+
         player = PlayerFactory.create(generator.stairsUpX(), generator.stairsUpY());
         all.add(player);
 
@@ -120,9 +138,98 @@ public class GameApp extends GameApplication {
         spawnItems();
 
         visible = fov.compute(dungeon, playerX(), playerY());
+        markExplored();
+        canvas.setVisible(true);
+
         state = GameState.PLAYING;
         playerActed = false;
+        renderAll();
         updateHud();
+    }
+
+    private void renderAll() {
+        gfx.setFill(Color.BLACK);
+        gfx.fillRect(0, 0, GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT);
+
+        int cols = GameConfig.SCREEN_WIDTH / TILESIZE;
+        int rows = GameConfig.SCREEN_HEIGHT / TILESIZE;
+        int offsetX = playerX() - cols / 2;
+        int offsetY = playerY() - rows / 2;
+
+        for (int sy = 0; sy < rows; sy++) {
+            for (int sx = 0; sx < cols; sx++) {
+                int mx = offsetX + sx;
+                int my = offsetY + sy;
+                if (mx < 0 || mx >= GameConfig.MAP_WIDTH || my < 0 || my >= GameConfig.MAP_HEIGHT) continue;
+
+                boolean vis = visible[my][mx];
+                boolean exp = explored[my][mx];
+
+                Color c;
+                if (vis) {
+                    c = switch (dungeon[my][mx]) {
+                        case WALL -> Color.rgb(60, 60, 65);
+                        case FLOOR -> Color.rgb(50, 45, 38);
+                        case CORRIDOR -> Color.rgb(42, 37, 32);
+                        case DOOR -> Color.rgb(100, 70, 30);
+                        case STAIRS_DOWN, STAIRS_UP -> Color.rgb(180, 160, 30);
+                        case WATER -> Color.rgb(20, 60, 100);
+                        default -> Color.BLACK;
+                    };
+                } else if (exp) {
+                    c = Color.rgb(30, 27, 25);
+                } else {
+                    continue;
+                }
+
+                gfx.setFill(c);
+                gfx.fillRect(sx * TILESIZE, sy * TILESIZE, TILESIZE - 1, TILESIZE - 1);
+            }
+        }
+
+        // Player
+        int px = playerX() - offsetX;
+        int py = playerY() - offsetY;
+        gfx.setFill(Color.LIMEGREEN);
+        gfx.fillRect(px * TILESIZE + 2, py * TILESIZE + 2, TILESIZE - 5, TILESIZE - 5);
+
+        // Enemies
+        for (var e : enemies) {
+            var ep = e.get(PositionComponent.class);
+            if (ep == null) continue;
+            if (!visible[ep.y()][ep.x()]) continue;
+            int ex = ep.x() - offsetX;
+            int ey = ep.y() - offsetY;
+            if (ex < 0 || ex >= cols || ey < 0 || ey >= rows) continue;
+            var ec = e.get(EnemyComponent.class);
+            Color c = switch (ec != null ? ec.type() : null) {
+                case SLIME -> Color.LIMEGREEN.brighter();
+                case SKELETON -> Color.WHITE;
+                case BAT -> Color.PURPLE;
+                default -> Color.RED;
+            };
+            gfx.setFill(c);
+            gfx.fillOval(ex * TILESIZE + 2, ey * TILESIZE + 2, TILESIZE - 5, TILESIZE - 5);
+        }
+
+        // Items
+        for (var item : items) {
+            var ip = item.get(PositionComponent.class);
+            if (ip == null || !visible[ip.y()][ip.x()]) continue;
+            int ix = ip.x() - offsetX;
+            int iy = ip.y() - offsetY;
+            if (ix < 0 || ix >= cols || iy < 0 || iy >= rows) continue;
+            gfx.setFill(Color.GOLD);
+            gfx.fillRect(ix * TILESIZE + 6, iy * TILESIZE + 6, TILESIZE - 12, TILESIZE - 12);
+        }
+    }
+
+    private void markExplored() {
+        for (int y = 0; y < GameConfig.MAP_HEIGHT; y++) {
+            for (int x = 0; x < GameConfig.MAP_WIDTH; x++) {
+                if (visible[y][x]) explored[y][x] = true;
+            }
+        }
     }
 
     private void spawnEnemies() {
@@ -181,12 +288,14 @@ public class GameApp extends GameApplication {
         for (var enemy : enemies) {
             var ep = enemy.get(PositionComponent.class);
             if (ep != null && ep.x() == nx && ep.y() == ny) {
-                var evt = AttackSystem.meleeAttack(player, enemy);
+                AttackSystem.meleeAttack(player, enemy);
                 if (!enemy.get(HealthComponent.class).isAlive()) {
                     enemiesSlain++;
                 }
                 playerActed = true;
                 turns++;
+                visible = fov.compute(dungeon, playerX(), playerY());
+                markExplored();
                 return;
             }
         }
@@ -200,6 +309,7 @@ public class GameApp extends GameApplication {
 
         player.get(PositionComponent.class).set(nx, ny);
         visible = fov.compute(dungeon, nx, ny);
+        markExplored();
         playerActed = true;
         turns++;
     }
@@ -207,21 +317,13 @@ public class GameApp extends GameApplication {
     private void pickupItem(Entity item) {
         items.remove(item);
         all.remove(item);
-        // Add to inventory - store in a simple list on the player
-        var inv = new ArrayList<>(inventoryItems());
-        inv.add(item);
-        // Update inventory data
-        updateInventoryStorage(inv);
     }
 
     private List<Entity> inventoryItems() {
-        // In a full implementation this would be stored on the player entity
         return new ArrayList<>();
     }
 
-    private void updateInventoryStorage(List<Entity> inv) {
-        // Stub - would use an InventoryComponent in full implementation
-    }
+    private void updateInventoryStorage(List<Entity> inv) {}
 
     private void useItem(Entity item) {
         var ic = item.get(ItemComponent.class);
@@ -244,11 +346,8 @@ public class GameApp extends GameApplication {
     }
 
     private void toggleInventory() {
-        if (inventory.isVisible()) {
-            inventory.hide();
-        } else {
-            inventory.show(inventoryItems());
-        }
+        if (inventory.isVisible()) inventory.hide();
+        else inventory.show(inventoryItems());
     }
 
     private void togglePause() {
@@ -275,9 +374,9 @@ public class GameApp extends GameApplication {
                 Math.abs(ep.x() - playerX()) <= 8 && Math.abs(ep.y() - playerY()) <= 8;
             seesPlayer = seesPlayer && lineOfSight(ep.x(), ep.y(), playerX(), playerY());
 
-            var state = bt.update(seesPlayer, hp.hpRatio(), ep.x(), ep.y(), playerX(), playerY());
+            var aiState = bt.update(seesPlayer, hp.hpRatio(), ep.x(), ep.y(), playerX(), playerY());
 
-            switch (state) {
+            switch (aiState) {
                 case ATTACK -> {
                     AttackSystem.meleeAttack(enemy, player);
                     if (!player.get(HealthComponent.class).isAlive()) {
@@ -285,38 +384,28 @@ public class GameApp extends GameApplication {
                         return;
                     }
                 }
-                case CHASE -> {
-                    var path = pathFinder.findPath(ep.x(), ep.y(), playerX(), playerY());
-                    if (!path.isEmpty()) {
-                        var step = path.get(0);
-                        if (isTileFree(step.x(), step.y())) {
-                            ep.set(step.x(), step.y());
-                        }
-                    }
-                }
+                case CHASE -> moveEnemy(enemy, ep, playerX(), playerY());
                 case FLEE -> {
                     var flee = bt.getFleeTarget(ep.x(), ep.y(), playerX(), playerY());
-                    var path = pathFinder.findPath(ep.x(), ep.y(),
+                    moveEnemy(enemy, ep,
                         clamp(flee[0], 1, GameConfig.MAP_WIDTH - 2),
                         clamp(flee[1], 1, GameConfig.MAP_HEIGHT - 2));
-                    if (!path.isEmpty()) {
-                        var step = path.get(0);
-                        if (isTileFree(step.x(), step.y())) {
-                            ep.set(step.x(), step.y());
-                        }
-                    }
                 }
                 case WANDER -> {
                     var wander = bt.getWanderTarget(ep.x(), ep.y(), 2, 2,
                         GameConfig.MAP_WIDTH - 3, GameConfig.MAP_HEIGHT - 3);
-                    var path = pathFinder.findPath(ep.x(), ep.y(), wander[0], wander[1]);
-                    if (!path.isEmpty()) {
-                        var step = path.get(0);
-                        if (isTileFree(step.x(), step.y())) {
-                            ep.set(step.x(), step.y());
-                        }
-                    }
+                    moveEnemy(enemy, ep, wander[0], wander[1]);
                 }
+            }
+        }
+    }
+
+    private void moveEnemy(Entity enemy, PositionComponent ep, int tx, int ty) {
+        var path = pathFinder.findPath(ep.x(), ep.y(), tx, ty);
+        if (!path.isEmpty()) {
+            var step = path.get(0);
+            if (isTileFree(step.x(), step.y())) {
+                ep.set(step.x(), step.y());
             }
         }
     }
@@ -357,10 +446,7 @@ public class GameApp extends GameApplication {
     private void loadGame(String slot) {
         try {
             var data = SaveManager.load(slot);
-            if (data == null) {
-                newGame();
-                return;
-            }
+            if (data == null) { newGame(); return; }
             floor = data.floor;
             seed = data.seed;
             startFloor();
@@ -375,13 +461,11 @@ public class GameApp extends GameApplication {
     private void gameOver() {
         state = GameState.GAME_OVER;
         hud.remove();
+        canvas.setVisible(false);
         GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu);
     }
 
     private void checkState() {
-        if (enemies.isEmpty()) {
-            // floor cleared - player can proceed to stairs
-        }
         if (!player.get(HealthComponent.class).isAlive()) {
             gameOver();
         }
@@ -391,8 +475,6 @@ public class GameApp extends GameApplication {
         var hp = player.get(HealthComponent.class);
         hud.update(hp.hp(), hp.maxHp(), floor, turns);
     }
-
-    // --- Helpers ---
 
     private int playerX() { return player.get(PositionComponent.class).x(); }
     private int playerY() { return player.get(PositionComponent.class).y(); }
