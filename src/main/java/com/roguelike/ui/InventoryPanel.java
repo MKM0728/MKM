@@ -6,6 +6,7 @@ import com.roguelike.entity.ItemComponent;
 
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -21,23 +22,28 @@ public class InventoryPanel {
     private Consumer<Entity> onUse;
     private Consumer<Entity> onDrop;
     private boolean visible;
+    private VBox panel;
 
     public void setOnUse(Consumer<Entity> handler) { this.onUse = handler; }
     public void setOnDrop(Consumer<Entity> handler) { this.onDrop = handler; }
 
     public void show(List<Entity> inventoryItems) {
+        hide();
+
         items.clear();
         items.addAll(inventoryItems);
 
-        var box = new VBox(8);
-        box.setAlignment(Pos.CENTER);
-        box.setStyle("-fx-background-color: rgba(0,0,0,0.85); -fx-padding: 12;");
-        box.setPrefWidth(280);
+        panel = new VBox(8);
+        panel.setAlignment(Pos.CENTER);
+        panel.setStyle("-fx-background-color: rgba(0,0,0,0.85); -fx-padding: 12;");
+        panel.setPrefWidth(280);
+        panel.setTranslateX(FXGL.getAppWidth() / 2.0 - 140);
+        panel.setTranslateY(FXGL.getAppHeight() / 2.0 - 200);
 
         var title = new Text("Inventory");
         title.setFont(Font.font("Monospaced", 20));
         title.setFill(Color.GOLD);
-        box.getChildren().add(title);
+        panel.getChildren().add(title);
 
         for (int i = 0; i < items.size() && i < 9; i++) {
             var item = items.get(i);
@@ -53,10 +59,10 @@ public class InventoryPanel {
             row.setOnAction(e -> {
                 if (onUse != null) onUse.accept(items.get(idx));
             });
-            box.getChildren().add(row);
+            panel.getChildren().add(row);
         }
 
-        var btnRow = new javafx.scene.layout.HBox(10);
+        var btnRow = new HBox(10);
         btnRow.setAlignment(Pos.CENTER);
 
         var closeBtn = new Button("Close [I]");
@@ -65,19 +71,17 @@ public class InventoryPanel {
         closeBtn.setOnAction(e -> hide());
         btnRow.getChildren().add(closeBtn);
 
-        box.getChildren().add(btnRow);
+        panel.getChildren().add(btnRow);
 
-        var root = FXGL.getGameScene().getRoot();
-        root.getChildren().add(box);
-        box.setLayoutX(FXGL.getAppWidth() / 2.0 - 140);
-        box.setLayoutY(FXGL.getAppHeight() / 2.0 - 200);
-        box.setId("inventory-panel");
+        FXGL.getGameScene().addUINode(panel);
         visible = true;
     }
 
     public void hide() {
-        var root = FXGL.getGameScene().getRoot();
-        root.getChildren().removeIf(n -> "inventory-panel".equals(n.getId()));
+        if (panel != null) {
+            FXGL.getGameScene().removeUINode(panel);
+            panel = null;
+        }
         visible = false;
     }
 

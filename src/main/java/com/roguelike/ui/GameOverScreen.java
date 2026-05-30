@@ -11,18 +11,21 @@ import javafx.scene.text.Text;
 
 public final class GameOverScreen {
 
+    private static VBox box;
+
     private GameOverScreen() {}
 
     public static void show(int floorReached, int enemiesSlain, int turnsTaken,
                             Runnable onRestart, Runnable onMenu) {
+        hide();
+
         var title = new Text("YOU DIED");
         title.setFont(Font.font("Monospaced", 52));
         title.setFill(Color.RED);
 
         var stats = new Text(String.format(
-            "Floor: %d  |  Enemies slain: %d  |  Turns: %d",
-            floorReached, enemiesSlain, turnsTaken
-        ));
+            "Floor: %d  |  Enemies Slain: %d  |  Turns: %d",
+            floorReached, enemiesSlain, turnsTaken));
         stats.setFont(Font.font("Monospaced", 14));
         stats.setFill(Color.LIGHTGRAY);
 
@@ -38,13 +41,18 @@ public final class GameOverScreen {
         btnRestart.setOnAction(e -> onRestart.run());
         btnMenu.setOnAction(e -> onMenu.run());
 
-        var box = new VBox(25, title, stats, btnRestart, btnMenu);
+        box = new VBox(25, title, stats, btnRestart, btnMenu);
         box.setAlignment(Pos.CENTER);
+        box.setTranslateX(FXGL.getAppWidth() / 2.0 - 150);
+        box.setTranslateY(FXGL.getAppHeight() / 2.0 - 150);
 
-        var bg = FXGL.getGameScene().getRoot();
-        bg.getChildren().clear();
-        bg.getChildren().add(box);
-        box.setLayoutX(FXGL.getAppWidth() / 2.0 - 150);
-        box.setLayoutY(FXGL.getAppHeight() / 2.0 - 120);
+        FXGL.getGameScene().addUINode(box);
+    }
+
+    public static void hide() {
+        if (box != null) {
+            FXGL.getGameScene().removeUINode(box);
+            box = null;
+        }
     }
 }

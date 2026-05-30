@@ -11,9 +11,13 @@ import javafx.scene.text.Text;
 
 public final class MenuScreen {
 
+    private static VBox box;
+
     private MenuScreen() {}
 
     public static void show(Runnable onNewGame, Runnable onContinue, Runnable onQuit) {
+        hide();
+
         var title = new Text("Roguelike Dungeon");
         title.setFont(Font.font("Monospaced", 48));
         title.setFill(Color.ORANGE);
@@ -37,13 +41,18 @@ public final class MenuScreen {
         btnContinue.setOnAction(e -> onContinue.run());
         btnQuit.setOnAction(e -> onQuit.run());
 
-        var box = new VBox(20, title, subtitle, btnNew, btnContinue, btnQuit);
+        box = new VBox(20, title, subtitle, btnNew, btnContinue, btnQuit);
         box.setAlignment(Pos.CENTER);
+        box.setTranslateX(FXGL.getAppWidth() / 2.0 - 150);
+        box.setTranslateY(FXGL.getAppHeight() / 2.0 - 150);
 
-        var bg = FXGL.getGameScene().getRoot();
-        bg.getChildren().clear();
-        bg.getChildren().add(box);
-        box.setLayoutX(FXGL.getAppWidth() / 2.0 - 150);
-        box.setLayoutY(FXGL.getAppHeight() / 2.0 - 150);
+        FXGL.getGameScene().addUINode(box);
+    }
+
+    public static void hide() {
+        if (box != null) {
+            FXGL.getGameScene().removeUINode(box);
+            box = null;
+        }
     }
 }

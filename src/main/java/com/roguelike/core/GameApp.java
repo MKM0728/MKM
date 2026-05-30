@@ -90,10 +90,13 @@ public class GameApp extends GameApplication {
 
     private void showMenu() {
         state = GameState.MENU;
+        GameOverScreen.hide();
         MenuScreen.show(this::newGame, () -> loadGame("auto"), () -> FXGL.getGameController().exit());
     }
 
     private void newGame() {
+        MenuScreen.hide();
+        GameOverScreen.hide();
         seed = java.lang.System.currentTimeMillis();
         floor = 1;
         turns = 0;
@@ -371,6 +374,7 @@ public class GameApp extends GameApplication {
 
     private void gameOver() {
         state = GameState.GAME_OVER;
+        hud.remove();
         GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu);
     }
 
