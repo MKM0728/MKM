@@ -22,7 +22,7 @@ class EnemyFactoryTest {
     void slimeStatsAreCorrect() {
         var slime = EnemyFactory.create(EnemyType.SLIME, 0, 0);
         var hp = slime.get(HealthComponent.class);
-        assertEquals(10, hp.hp());
-        assertEquals(20, hp.maxHp());
+        assertEquals(15, hp.hp());
+        assertEquals(30, hp.maxHp());
     }
 }
