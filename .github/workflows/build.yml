@@ -14,7 +14,10 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - run: chmod +x gradlew && ./gradlew test shadowJar
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.6.4'
+      - run: gradle test shadowJar
       - uses: actions/upload-artifact@v4
         with:
           name: jar
@@ -29,7 +32,10 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - run: .\gradlew.bat shadowJar
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.6.4'
+      - run: gradle shadowJar
       - run: |
           jpackage --name RoguelikeDungeon --input build\libs --main-jar roguelike-dungeon-0.1.0.jar --main-class com.roguelike.core.GameApp --type app-image --dest build\dist --app-version 0.1.0 --vendor rullerzhou --win-console
       - run: Compress-Archive -Path build\dist\RoguelikeDungeon\* -DestinationPath RoguelikeDungeon-windows.zip
