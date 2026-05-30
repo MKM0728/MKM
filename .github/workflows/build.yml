@@ -17,7 +17,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.9'
-      - run: gradle test fatJar
+      - run: gradle compileJava
+      - run: gradle test
+      - run: gradle fatJar
       - uses: actions/upload-artifact@v4
         with:
           name: jar
