@@ -534,9 +534,31 @@ public class GameApp extends GameApplication {
     private void collectChest() {
         worldGroup.getChildren().remove(chestGroup);
         chestGroup = null;
-        state = GameState.GAME_OVER;
-        hud.remove(); worldGroup.setVisible(false);
-        showVictory();
+        if (floor >= GameConfig.MAX_FLOORS) {
+            state = GameState.GAME_OVER;
+            hud.remove(); worldGroup.setVisible(false);
+            showVictory();
+        } else {
+            floor++;
+            worldGroup.setVisible(false);
+            showFloorTransition();
+        }
+    }
+
+    private void showFloorTransition() {
+        var t = new javafx.scene.text.Text("Floor " + floor + " - Go deeper!");
+        t.setFont(Font.font("Monospaced", FontWeight.BOLD, 32));
+        t.setFill(Color.GOLD);
+        t.setX(GameConfig.SCREEN_WIDTH / 2.0 - 180);
+        t.setY(GameConfig.SCREEN_HEIGHT / 2.0);
+        FXGL.getGameScene().getRoot().getChildren().add(t);
+        new Thread(() -> {
+            try { Thread.sleep(1500); } catch (Exception ignored) {}
+            javafx.application.Platform.runLater(() -> {
+                FXGL.getGameScene().getRoot().getChildren().remove(t);
+                startFloor();
+            });
+        }).start();
     }
 
     private void showVictory() {

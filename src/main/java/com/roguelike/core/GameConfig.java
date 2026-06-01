@@ -21,7 +21,7 @@ public final class GameConfig {
     public static final int PLAYER_BASE_DEF = 0;
     public static final int PLAYER_BASE_SPD = 10;
 
-    public static final int MAX_FLOORS = 20;
+    public static final int MAX_FLOORS = 3;
     public static final int FOV_RADIUS = 8;
     public static final int ENEMY_COUNT = 10;
 }
