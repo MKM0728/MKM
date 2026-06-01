@@ -283,10 +283,10 @@ public class GameApp extends GameApplication {
         enemies.clear(); enemyGroups.forEach(g -> worldGroup.getChildren().remove(g)); enemyGroups.clear();
         if (chestGroup != null) { worldGroup.getChildren().remove(chestGroup); chestGroup = null; }
 
-        generator = new DungeonGenerator(GameConfig.MAP_WIDTH, GameConfig.MAP_HEIGHT, seed + floor);
+        generator = new DungeonGenerator(GameConfig.mapWidth(floor), GameConfig.mapHeight(floor), seed + floor);
         dungeon = generator.generate(GameConfig.MAX_BSP_DEPTH);
         pathFinder = new PathFinder(dungeon);
-        explored = new boolean[GameConfig.MAP_HEIGHT][GameConfig.MAP_WIDTH];
+        explored = new boolean[GameConfig.mapHeight(floor)][GameConfig.mapWidth(floor)];
 
         player = PlayerFactory.create(generator.stairsUpX(), generator.stairsUpY());
         spawnEnemies();
@@ -300,7 +300,7 @@ public class GameApp extends GameApplication {
         }
 
         // Spawn chest far from player
-        int px = playerX(), py = playerY(), mw = GameConfig.MAP_WIDTH, mh = GameConfig.MAP_HEIGHT;
+        int px = playerX(), py = playerY(), mw = GameConfig.mapWidth(floor), mh = GameConfig.mapHeight(floor);
         do { chestX = 2 + (int)(Math.random() * (mw - 4)); chestY = 2 + (int)(Math.random() * (mh - 4));
         } while (dungeon[chestY][chestX] != Tile.FLOOR
             || (Math.abs(chestX - px) + Math.abs(chestY - py) < Math.min(mw, mh) / 2)
@@ -320,7 +320,7 @@ public class GameApp extends GameApplication {
         var types = EnemyType.values();
         for (int i = 0; i < count; i++) {
             int x, y;
-            do { x = 2 + (int)(Math.random() * (GameConfig.MAP_WIDTH - 4)); y = 2 + (int)(Math.random() * (GameConfig.MAP_HEIGHT - 4));
+            do { x = 2 + (int)(Math.random() * (GameConfig.mapWidth(floor) - 4)); y = 2 + (int)(Math.random() * (GameConfig.mapHeight(floor) - 4));
             } while (dungeon[y][x] != Tile.FLOOR || (x == playerX() && y == playerY()));
             enemies.add(EnemyFactory.create(types[(int)(Math.random() * types.length)], x, y));
         }
@@ -404,7 +404,7 @@ public class GameApp extends GameApplication {
             for (int sx = 0; sx < COLS; sx++) {
                 int mx = ox + sx, my = oy + sy;
                 var r = tileRects[sy][sx];
-                if (mx < 0 || mx >= GameConfig.MAP_WIDTH || my < 0 || my >= GameConfig.MAP_HEIGHT) { r.setVisible(false); continue; }
+                if (mx < 0 || mx >= GameConfig.mapWidth(floor) || my < 0 || my >= GameConfig.mapHeight(floor)) { r.setVisible(false); continue; }
                 if (visible[my][mx]) {
                     r.setVisible(true);
                     r.setFill(switch (dungeon[my][mx]) {
@@ -448,8 +448,8 @@ public class GameApp extends GameApplication {
     }
 
     private void markExplored() {
-        for (int y = 0; y < GameConfig.MAP_HEIGHT; y++)
-            for (int x = 0; x < GameConfig.MAP_WIDTH; x++)
+        for (int y = 0; y < GameConfig.mapHeight(floor); y++)
+            for (int x = 0; x < GameConfig.mapWidth(floor); x++)
                 if (visible[y][x]) explored[y][x] = true;
     }
 
@@ -481,10 +481,10 @@ public class GameApp extends GameApplication {
                     case CHASE -> moveEnemy(e, ep, playerX(), playerY());
                     case FLEE -> {
                         var f = bt.getFleeTarget(ep.x(), ep.y(), playerX(), playerY());
-                        moveEnemy(e, ep, clamp(f[0], 1, GameConfig.MAP_WIDTH - 2), clamp(f[1], 1, GameConfig.MAP_HEIGHT - 2));
+                        moveEnemy(e, ep, clamp(f[0], 1, GameConfig.mapWidth(floor) - 2), clamp(f[1], 1, GameConfig.mapHeight(floor) - 2));
                     }
                     case WANDER -> {
-                        var w = bt.getWanderTarget(ep.x(), ep.y(), 2, 2, GameConfig.MAP_WIDTH - 3, GameConfig.MAP_HEIGHT - 3);
+                        var w = bt.getWanderTarget(ep.x(), ep.y(), 2, 2, GameConfig.mapWidth(floor) - 3, GameConfig.mapHeight(floor) - 3);
                         moveEnemy(e, ep, w[0], w[1]);
                     }
                 }

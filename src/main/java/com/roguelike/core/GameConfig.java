@@ -9,8 +9,11 @@ public final class GameConfig {
     public static final int SCREEN_HEIGHT = 640;
 
     public static final int TILE_SIZE = 32;
-    public static final int MAP_WIDTH = 80;
-    public static final int MAP_HEIGHT = 50;
+    public static final int BASE_MAP_WIDTH = 30;
+    public static final int BASE_MAP_HEIGHT = 20;
+
+    public static int mapWidth(int floor) { return BASE_MAP_WIDTH * (1 << (floor - 1)); }
+    public static int mapHeight(int floor) { return BASE_MAP_HEIGHT * (1 << (floor - 1)); }
 
     public static final int MIN_ROOM_SIZE = 5;
     public static final int MIN_AREA_SIZE = 7;
