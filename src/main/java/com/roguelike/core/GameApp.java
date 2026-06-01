@@ -58,6 +58,8 @@ public class GameApp extends GameApplication {
     private Rectangle playerHpBar;
     private Rectangle[][] tileRects;
     private final List<Group> enemyGroups = new ArrayList<>();
+    private Group chestGroup;
+    private int chestX, chestY;
     private HBox dpad;
 
     private static final int TILESIZE = 32;
@@ -228,6 +230,25 @@ public class GameApp extends GameApplication {
         return c;
     }
 
+    private Canvas makeTreasureChest() {
+        Canvas c = new Canvas(TILESIZE, TILESIZE);
+        GraphicsContext g = c.getGraphicsContext2D();
+        int p = 3;
+        g.setFill(Color.rgb(30, 35, 30)); g.fillRect(0, 0, TILESIZE, TILESIZE);
+        // Chest body
+        g.setFill(Color.rgb(139, 90, 30)); g.fillRect(p * 2, p * 3, p * 7, p * 6);
+        g.setFill(Color.rgb(110, 70, 20)); g.fillRect(p * 2, p * 3, p * 1, p * 6);
+        // Gold lid
+        g.setFill(Color.rgb(200, 170, 50)); g.fillRect(p * 3, p * 2, p * 5, p * 2);
+        g.setFill(Color.rgb(180, 150, 40)); g.fillRect(p * 3, p * 2, p * 1, p * 2);
+        // Lock
+        g.setFill(Color.rgb(255, 215, 0)); g.fillRect(p * 5, p * 5, p * 2, p * 2);
+        g.setFill(Color.rgb(200, 170, 0)); g.fillRect(p * 5, p * 5, p * 1, p * 1);
+        // Sparkle
+        g.setFill(Color.rgb(255, 255, 200)); g.fillRect(p * 6, p * 6, p * 1, p * 1);
+        return c;
+    }
+
     private void setPlayerFrame(int i) {
         if (playerFrameIdx == i) return;
         playerGroup.getChildren().remove(playerFrames[playerFrameIdx]);
@@ -260,6 +281,7 @@ public class GameApp extends GameApplication {
 
     private void startFloor() {
         enemies.clear(); enemyGroups.forEach(g -> worldGroup.getChildren().remove(g)); enemyGroups.clear();
+        if (chestGroup != null) { worldGroup.getChildren().remove(chestGroup); chestGroup = null; }
 
         generator = new DungeonGenerator(GameConfig.MAP_WIDTH, GameConfig.MAP_HEIGHT, seed + floor);
         dungeon = generator.generate(GameConfig.MAX_BSP_DEPTH);
@@ -276,6 +298,16 @@ public class GameApp extends GameApplication {
             var g = new Group(c0); g.setVisible(false);
             enemyGroups.add(g); worldGroup.getChildren().add(g);
         }
+
+        // Spawn chest far from player
+        int px = playerX(), py = playerY(), mw = GameConfig.MAP_WIDTH, mh = GameConfig.MAP_HEIGHT;
+        do { chestX = 2 + (int)(Math.random() * (mw - 4)); chestY = 2 + (int)(Math.random() * (mh - 4));
+        } while (dungeon[chestY][chestX] != Tile.FLOOR
+            || (Math.abs(chestX - px) + Math.abs(chestY - py) < Math.min(mw, mh) / 2)
+            || enemyAt(chestX, chestY));
+        chestGroup = new Group(makeTreasureChest());
+        chestGroup.setVisible(false);
+        worldGroup.getChildren().add(chestGroup);
 
         visible = fov.compute(dungeon, playerX(), playerY()); markExplored();
         worldGroup.setVisible(true); playerGroup.toFront();
@@ -301,6 +333,11 @@ public class GameApp extends GameApplication {
         if (ny < 0 || ny >= dungeon.length || nx < 0 || nx >= dungeon[0].length) return;
         if (dungeon[ny][nx] == Tile.STAIRS_DOWN) { floor++; startFloor(); return; }
         if (!dungeon[ny][nx].isWalkable()) return;
+
+        // Check treasure chest
+        if (chestGroup != null && chestGroup.isVisible() && chestX == nx && chestY == ny) {
+            collectChest(); return;
+        }
 
         for (var enemy : enemies) {
             var ep = enemy.get(PositionComponent.class);
@@ -395,6 +432,19 @@ public class GameApp extends GameApplication {
             enemyGroups.get(i).setTranslateX(sx * TILESIZE + 1); enemyGroups.get(i).setTranslateY(sy * TILESIZE + 1);
             enemyGroups.get(i).setVisible(true);
         }
+
+        // Treasure chest visibility
+        if (chestGroup != null) {
+            int csx = chestX - ox, csy = chestY - oy;
+            if (csx >= 0 && csx < COLS && csy >= 0 && csy < ROWS && (visible[chestY][chestX] || explored[chestY][chestX])) {
+                chestGroup.setTranslateX(csx * TILESIZE + 1);
+                chestGroup.setTranslateY(csy * TILESIZE + 1);
+                chestGroup.setVisible(true);
+                if (visible[chestY][chestX]) chestGroup.toFront();
+            } else {
+                chestGroup.setVisible(false);
+            }
+        }
     }
 
     private void markExplored() {
@@ -466,6 +516,11 @@ public class GameApp extends GameApplication {
         return true;
     }
 
+    private boolean enemyAt(int x, int y) {
+        for (var e : enemies) { var ep = e.get(PositionComponent.class); if (ep != null && ep.x() == x && ep.y() == y) return true; }
+        return false;
+    }
+
     private boolean isTileFree(int x, int y) {
         if (y < 0 || y >= dungeon.length || x < 0 || x >= dungeon[0].length) return false;
         if (x == playerX() && y == playerY()) return false;
@@ -475,6 +530,32 @@ public class GameApp extends GameApplication {
 
     // --- Save/Load ---
     private void loadGame(String s) { try { var d = SaveManager.load(s); if (d == null) { newGame(); return; } floor = d.floor; seed = d.seed; startFloor(); player.get(PositionComponent.class).set(d.playerX, d.playerY); player.get(HealthComponent.class).takeDamage(player.get(HealthComponent.class).hp() - d.playerHp); } catch (Exception ex) { newGame(); } }
+
+    private void collectChest() {
+        worldGroup.getChildren().remove(chestGroup);
+        chestGroup = null;
+        state = GameState.GAME_OVER;
+        hud.remove(); worldGroup.setVisible(false);
+        showVictory();
+    }
+
+    private void showVictory() {
+        var box = new javafx.scene.layout.VBox(20);
+        box.setAlignment(javafx.geometry.Pos.CENTER);
+        box.setLayoutX(GameConfig.SCREEN_WIDTH / 2.0 - 150);
+        box.setLayoutY(GameConfig.SCREEN_HEIGHT / 2.0 - 80);
+        var title = new javafx.scene.text.Text("YOU WIN!");
+        title.setFont(Font.font("Monospaced", FontWeight.BOLD, 48));
+        title.setFill(Color.GOLD);
+        var stats = new javafx.scene.text.Text("Treasure found! Floors: " + floor + "  Enemies slain: " + enemiesSlain);
+        stats.setFont(Font.font("Monospaced", 16)); stats.setFill(Color.WHITE);
+        var btn = new Button("Play Again");
+        btn.setFont(Font.font(16));
+        btn.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-font-size: 16;");
+        btn.setOnAction(e -> { FXGL.getGameScene().getRoot().getChildren().remove(box); newGame(); });
+        box.getChildren().addAll(title, stats, btn);
+        FXGL.getGameScene().getRoot().getChildren().add(box);
+    }
 
     private void gameOver() { state = GameState.GAME_OVER; hud.remove(); worldGroup.setVisible(false); GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu); }
     private void checkState() { if (!player.get(HealthComponent.class).isAlive()) gameOver(); }
