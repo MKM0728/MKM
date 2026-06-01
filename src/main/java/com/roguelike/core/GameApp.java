@@ -539,6 +539,7 @@ public class GameApp extends GameApplication {
             hud.remove(); worldGroup.setVisible(false);
             showVictory();
         } else {
+            state = GameState.MENU; // block game loop during transition
             floor++;
             worldGroup.setVisible(false);
             showFloorTransition();
