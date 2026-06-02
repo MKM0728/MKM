@@ -20,11 +20,12 @@ public final class GameConfig {
     public static final int MAX_BSP_DEPTH = 5;
 
     public static final int PLAYER_BASE_HP = 100;
-    public static final int PLAYER_BASE_ATK = 8;
+    public static final int PLAYER_BASE_ATK = 5;
     public static final int PLAYER_BASE_DEF = 0;
     public static final int PLAYER_BASE_SPD = 10;
 
     public static final int MAX_FLOORS = 3;
     public static final int FOV_RADIUS = 8;
-    public static final int ENEMY_COUNT = 10;
+
+    public static int enemyCount(int floor) { return 6 + (int)(6 * 0.5 * (floor - 1)); }
 }

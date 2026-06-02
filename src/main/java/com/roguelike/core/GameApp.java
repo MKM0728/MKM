@@ -61,7 +61,12 @@ public class GameApp extends GameApplication {
     private final List<Group> enemyGroups = new ArrayList<>();
     private Group chestGroup;
     private int chestX, chestY;
+    private WeaponType equippedWeapon = WeaponType.FISTS;
+    private final List<WeaponDrop> groundWeapons = new ArrayList<>();
+    private final List<Group> weaponDropGroups = new ArrayList<>();
     private HBox dpad;
+
+    private record WeaponDrop(int x, int y, WeaponType type) {}
 
     private static final int TILESIZE = 32;
     private static final int COLS = GameConfig.SCREEN_WIDTH / TILESIZE;
@@ -102,10 +107,10 @@ public class GameApp extends GameApplication {
         playerGroup = new Group();
         int s = TILESIZE;
         playerFrames = new Canvas[]{
-            makePlayerFrame(false, false, false),
-            makePlayerFrame(true, false, false),
-            makePlayerFrame(false, true, false),
-            makePlayerFrame(false, false, true)
+            makePlayerFrame(false, false, false, WeaponType.FISTS),
+            makePlayerFrame(true, false, false, WeaponType.FISTS),
+            makePlayerFrame(false, true, false, WeaponType.FISTS),
+            makePlayerFrame(false, false, true, WeaponType.FISTS)
         };
         playerFrameIdx = 0;
         playerGroup.getChildren().add(playerFrames[0]);
@@ -164,7 +169,7 @@ public class GameApp extends GameApplication {
     }
 
     // --- Pixel art ---
-    private Canvas makePlayerFrame(boolean wl, boolean wr, boolean atk) {
+    private Canvas makePlayerFrame(boolean wl, boolean wr, boolean atk, WeaponType weapon) {
         Canvas c = new Canvas(TILESIZE, TILESIZE);
         GraphicsContext g = c.getGraphicsContext2D();
         int p = 3;
@@ -177,14 +182,36 @@ public class GameApp extends GameApplication {
         // Body
         g.setFill(Color.rgb(30, 140, 30)); g.fillRect(p * 3, p * 5, p * 5, p * 4);
         g.setFill(Color.rgb(80, 50, 20)); g.fillRect(p * 3, p * 5, p * 5, p * 1);
-        // Arms
+        // Left arm
+        g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 1, p * 5, p * 2, p * 3);
+        // Right arm + weapon
         if (atk) {
-            g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 1, p * 5, p * 2, p * 3);
-            g.setFill(Color.rgb(200, 200, 200)); g.fillRect(p * 9, p * 3, p * 1, p * 5);
-            g.setFill(Color.rgb(140, 100, 30)); g.fillRect(p * 8, p * 6, p * 1, p * 2);
-            g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 8, p * 5, p * 1, p * 2);
+            switch (weapon) {
+                case FISTS -> {
+                    g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 8, p * 4, p * 2, p * 3);
+                    g.setFill(Color.rgb(255, 200, 160)); g.fillRect(p * 10, p * 5, p * 1, p * 1);
+                }
+                case SICKLE -> {
+                    g.setFill(Color.rgb(120, 70, 30)); g.fillRect(p * 8, p * 3, p * 1, p * 4);
+                    g.setFill(Color.rgb(180, 180, 200)); g.fillRect(p * 5, p * 2, p * 3, p * 1);
+                    g.setFill(Color.rgb(160, 160, 180)); g.fillRect(p * 5, p * 3, p * 1, p * 1);
+                    g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 8, p * 6, p * 1, p * 2);
+                }
+                case SWORD -> {
+                    g.setFill(Color.rgb(210, 210, 230)); g.fillRect(p * 9, p * 1, p * 1, p * 5);
+                    g.setFill(Color.rgb(200, 170, 50)); g.fillRect(p * 8, p * 5, p * 3, p * 1);
+                    g.setFill(Color.rgb(100, 60, 30)); g.fillRect(p * 9, p * 6, p * 1, p * 3);
+                    g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 9, p * 6, p * 1, p * 1);
+                }
+                case AXE -> {
+                    g.setFill(Color.rgb(120, 70, 30)); g.fillRect(p * 8, p * 2, p * 1, p * 6);
+                    g.setFill(Color.rgb(180, 180, 200)); g.fillRect(p * 6, p * 1, p * 4, p * 2);
+                    g.setFill(Color.rgb(160, 160, 180)); g.fillRect(p * 7, p * 3, p * 1, p * 1);
+                    g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 8, p * 6, p * 1, p * 2);
+                }
+            }
         } else {
-            g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 1, p * 5, p * 2, p * 3); g.fillRect(p * 8, p * 5, p * 2, p * 3);
+            g.setFill(Color.rgb(255, 220, 180)); g.fillRect(p * 8, p * 5, p * 2, p * 3);
         }
         // Legs
         g.setFill(Color.rgb(60, 40, 20));
@@ -203,18 +230,18 @@ public class GameApp extends GameApplication {
         g.setFill(Color.rgb(30, 35, 30)); g.fillRect(0, 0, TILESIZE, TILESIZE);
         switch (kind) {
             case "bat" -> {
-                g.setFill(Color.rgb(180, 40, 40)); g.fillRect(p * 3, p * 2, p * 5, p * 4);
+                g.setFill(Color.rgb(200, 30, 30)); g.fillRect(p * 3, p * 2, p * 5, p * 4);
                 g.fillRect(p * 4, p * 1, p * 3, p * 2);
                 g.setFill(Color.BLACK); g.fillRect(p * 5, p * 2, p * 2, p * 1);
                 if (alt) {
-                    g.setFill(Color.rgb(220, 60, 60)); g.fillRect(p * 1, p * 3, p * 2, p * 2);
+                    g.setFill(Color.rgb(240, 50, 50)); g.fillRect(p * 1, p * 3, p * 2, p * 2);
                 } else {
-                    g.setFill(Color.rgb(220, 60, 60)); g.fillRect(p * 1, p * 5, p * 2, p * 3);
+                    g.setFill(Color.rgb(240, 50, 50)); g.fillRect(p * 1, p * 5, p * 2, p * 3);
                 }
                 g.fillRect(p * 8, alt ? p * 3 : p * 5, p * 2, alt ? p * 2 : p * 3);
             }
             case "skeleton" -> {
-                g.setFill(Color.rgb(200, 160, 200));
+                g.setFill(Color.rgb(170, 80, 170));
                 g.fillRect(p * 4, p * 0, p * 3, p * 2);
                 g.setFill(Color.BLACK); g.fillRect(p * 5, p * 1, p * 1, p * 1); g.fillRect(p * 6, p * 1, p * 1, p * 1);
                 g.fillRect(p * 3, p * 2, p * 5, p * 5); g.fillRect(p * 2, p * 3, p * 1, p * 3); g.fillRect(p * 8, p * 3, p * 1, p * 3);
@@ -250,6 +277,41 @@ public class GameApp extends GameApplication {
         return c;
     }
 
+    private void refreshAttackFrame() {
+        Canvas old = playerFrames[3];
+        playerFrames[3] = makePlayerFrame(false, false, true, equippedWeapon);
+        if (playerFrameIdx == 3) {
+            playerGroup.getChildren().remove(old);
+            playerGroup.getChildren().add(0, playerFrames[3]);
+        }
+    }
+
+    private Canvas makeWeaponSprite(WeaponType type) {
+        Canvas c = new Canvas(TILESIZE, TILESIZE);
+        GraphicsContext g = c.getGraphicsContext2D();
+        int p = 3, s = TILESIZE;
+        g.setFill(Color.rgb(30, 35, 30)); g.fillRect(0, 0, s, s);
+        // Glow under weapon
+        g.setFill(Color.rgb(60, 55, 40)); g.fillRect(p * 3, p * 6, p * 5, p * 3);
+        switch (type) {
+            case SICKLE -> {
+                g.setFill(Color.rgb(120, 70, 30)); g.fillRect(p * 6, p * 3, p * 1, p * 5);
+                g.setFill(Color.rgb(180, 180, 200)); g.fillRect(p * 3, p * 2, p * 3, p * 1);
+                g.setFill(Color.rgb(160, 160, 180)); g.fillRect(p * 3, p * 3, p * 1, p * 1);
+            }
+            case SWORD -> {
+                g.setFill(Color.rgb(210, 210, 230)); g.fillRect(p * 5, p * 1, p * 1, p * 6);
+                g.setFill(Color.rgb(200, 170, 50)); g.fillRect(p * 4, p * 6, p * 3, p * 1);
+                g.setFill(Color.rgb(100, 60, 30)); g.fillRect(p * 5, p * 7, p * 1, p * 2);
+            }
+            case AXE -> {
+                g.setFill(Color.rgb(120, 70, 30)); g.fillRect(p * 5, p * 2, p * 1, p * 7);
+                g.setFill(Color.rgb(180, 180, 200)); g.fillRect(p * 3, p * 1, p * 5, p * 2);
+            }
+        }
+        return c;
+    }
+
     private void setPlayerFrame(int i) {
         if (playerFrameIdx == i) return;
         playerGroup.getChildren().remove(playerFrames[playerFrameIdx]);
@@ -277,6 +339,7 @@ public class GameApp extends GameApplication {
     private void newGame() {
         MenuScreen.hide(); GameOverScreen.hide();
         seed = java.lang.System.currentTimeMillis(); floor = 1; turns = 0; enemiesSlain = 0;
+        equippedWeapon = WeaponType.FISTS; refreshAttackFrame();
         startFloor();
     }
 
@@ -284,6 +347,7 @@ public class GameApp extends GameApplication {
         holdDir = null; animating = false;
         enemies.clear(); enemyGroups.forEach(g -> worldGroup.getChildren().remove(g)); enemyGroups.clear();
         if (chestGroup != null) { worldGroup.getChildren().remove(chestGroup); chestGroup = null; }
+        weaponDropGroups.forEach(g -> worldGroup.getChildren().remove(g)); weaponDropGroups.clear(); groundWeapons.clear();
 
         generator = new DungeonGenerator(GameConfig.mapWidth(floor), GameConfig.mapHeight(floor), seed + floor);
         dungeon = generator.generate(GameConfig.MAX_BSP_DEPTH);
@@ -318,7 +382,7 @@ public class GameApp extends GameApplication {
     }
 
     private void spawnEnemies() {
-        int count = GameConfig.ENEMY_COUNT;
+        int count = GameConfig.enemyCount(floor);
         var types = EnemyType.values();
         for (int i = 0; i < count; i++) {
             int x, y;
@@ -341,6 +405,19 @@ public class GameApp extends GameApplication {
             collectChest(); return;
         }
 
+        // Pick up weapon
+        for (int i = 0; i < groundWeapons.size(); i++) {
+            var wd = groundWeapons.get(i);
+            if (wd.x() == nx && wd.y() == ny) {
+                equippedWeapon = wd.type();
+                refreshAttackFrame();
+                worldGroup.getChildren().remove(weaponDropGroups.get(i));
+                groundWeapons.remove(i); weaponDropGroups.remove(i);
+                showFloatingText(nx, ny, wd.type().label() + "!");
+                break;
+            }
+        }
+
         for (var enemy : enemies) {
             var ep = enemy.get(PositionComponent.class);
             if (ep != null && ep.x() == nx && ep.y() == ny) {
@@ -352,13 +429,18 @@ public class GameApp extends GameApplication {
     }
 
     private void attackEnemy(Entity enemy, int nx, int ny) {
+        var hp = enemy.get(HealthComponent.class);
+        if (hp == null || !hp.isAlive()) return;
         setPlayerFrame(3);
         playerGroup.setStyle("-fx-effect: dropshadow(gaussian, yellow, 10, 0.8, 0, 0);");
-        var hp = enemy.get(HealthComponent.class);
-        if (hp != null) hp.takeDamage(999);
-        enemiesSlain++;
-        showFloatingText(nx, ny, "DEAD!");
+        int dmg = equippedWeapon.damage();
+        hp.takeDamage(dmg);
         playerMoves--; turns++;
+        showFloatingText(nx, ny, "-" + dmg);
+        if (hp != null && !hp.isAlive()) {
+            enemiesSlain++;
+            tryDropWeapon(nx, ny, enemy);
+        }
         new Thread(() -> {
             try { Thread.sleep(400); } catch (Exception ignored) {}
             javafx.application.Platform.runLater(() -> { playerGroup.setStyle(null); if (holdDir == null && !animating) setPlayerFrame(0); });
@@ -450,6 +532,20 @@ public class GameApp extends GameApplication {
                 chestGroup.setVisible(false);
             }
         }
+
+        // Weapon drops
+        for (int i = 0; i < weaponDropGroups.size(); i++) {
+            if (i >= groundWeapons.size()) { weaponDropGroups.get(i).setVisible(false); continue; }
+            var wd = groundWeapons.get(i);
+            int wsx = wd.x() - ox, wsy = wd.y() - oy;
+            if (wsx >= 0 && wsx < COLS && wsy >= 0 && wsy < ROWS && visible[wd.y()][wd.x()]) {
+                weaponDropGroups.get(i).setTranslateX(wsx * TILESIZE + 1);
+                weaponDropGroups.get(i).setTranslateY(wsy * TILESIZE + 1);
+                weaponDropGroups.get(i).setVisible(true);
+            } else {
+                weaponDropGroups.get(i).setVisible(false);
+            }
+        }
     }
 
     private void markExplored() {
@@ -461,8 +557,10 @@ public class GameApp extends GameApplication {
     // --- Enemy AI ---
     private void enemyTurns() {
         var bt = new BehaviorTree();
-        for (var e : new ArrayList<>(enemies)) {
-            if (!e.get(HealthComponent.class).isAlive()) { enemies.remove(e); continue; }
+        var deadIndices = new ArrayList<Integer>();
+        for (int i = 0; i < enemies.size(); i++) {
+            var e = enemies.get(i);
+            if (!e.get(HealthComponent.class).isAlive()) { deadIndices.add(i); continue; }
             var ep = e.get(PositionComponent.class); var ec = e.get(EnemyComponent.class);
             var hp = e.get(HealthComponent.class);
             if (ep == null || ec == null || hp == null) continue;
@@ -495,6 +593,11 @@ public class GameApp extends GameApplication {
                 }
             }
         }
+        for (int idx = deadIndices.size() - 1; idx >= 0; idx--) {
+            int di = deadIndices.get(idx);
+            worldGroup.getChildren().remove(enemyGroups.remove(di));
+            enemies.remove(di);
+        }
     }
 
     private void moveEnemy(Entity e, PositionComponent ep, int tx, int ty) {
@@ -524,6 +627,23 @@ public class GameApp extends GameApplication {
     private boolean enemyAt(int x, int y) {
         for (var e : enemies) { var ep = e.get(PositionComponent.class); if (ep != null && ep.x() == x && ep.y() == y) return true; }
         return false;
+    }
+
+    private void tryDropWeapon(int x, int y, Entity enemy) {
+        var ec = enemy.get(EnemyComponent.class);
+        if (ec == null) return;
+        if (Math.random() > 0.4) return; // 40% drop rate
+        WeaponType drop;
+        if (ec.type() == EnemyType.BAT) {
+            drop = Math.random() < 0.5 ? WeaponType.SICKLE : WeaponType.SWORD;
+        } else {
+            drop = Math.random() < 0.5 ? WeaponType.SWORD : WeaponType.AXE;
+        }
+        groundWeapons.add(new WeaponDrop(x, y, drop));
+        var g = new Group(makeWeaponSprite(drop));
+        g.setVisible(false);
+        weaponDropGroups.add(g);
+        worldGroup.getChildren().add(g);
     }
 
     private boolean isTileFree(int x, int y) {
@@ -587,7 +707,7 @@ public class GameApp extends GameApplication {
 
     private void gameOver() { state = GameState.GAME_OVER; hud.remove(); worldGroup.setVisible(false); GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu); }
     private void checkState() { if (!player.get(HealthComponent.class).isAlive()) gameOver(); }
-    private void updateHud() { var hp = player.get(HealthComponent.class); hud.update(hp.hp(), hp.maxHp(), floor, turns); }
+    private void updateHud() { var hp = player.get(HealthComponent.class); hud.update(hp.hp(), hp.maxHp(), floor, turns, equippedWeapon.label()); }
     private int playerX() { return player.get(PositionComponent.class).x(); }
     private int playerY() { return player.get(PositionComponent.class).y(); }
     private int clamp(int v, int min, int max) { return Math.max(min, Math.min(max, v)); }
