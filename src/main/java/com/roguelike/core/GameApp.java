@@ -16,6 +16,7 @@ import com.roguelike.ui.GameOverScreen;
 import com.roguelike.ui.HudOverlay;
 import com.roguelike.ui.MenuScreen;
 
+import javafx.animation.PauseTransition;
 import javafx.animation.TranslateTransition;
 import javafx.scene.Group;
 import javafx.scene.canvas.Canvas;
@@ -405,6 +406,7 @@ public class GameApp extends GameApplication {
                 int mx = ox + sx, my = oy + sy;
                 var r = tileRects[sy][sx];
                 if (mx < 0 || mx >= GameConfig.mapWidth(floor) || my < 0 || my >= GameConfig.mapHeight(floor)) { r.setVisible(false); continue; }
+                if (my >= visible.length || mx >= visible[my].length || my >= dungeon.length || mx >= dungeon[my].length) { r.setVisible(false); continue; }
                 if (visible[my][mx]) {
                     r.setVisible(true);
                     r.setFill(switch (dungeon[my][mx]) {
@@ -534,6 +536,7 @@ public class GameApp extends GameApplication {
     private void collectChest() {
         worldGroup.getChildren().remove(chestGroup);
         chestGroup = null;
+        holdDir = null; // clear any held direction
         if (floor >= GameConfig.MAX_FLOORS) {
             state = GameState.GAME_OVER;
             hud.remove(); worldGroup.setVisible(false);
@@ -553,13 +556,12 @@ public class GameApp extends GameApplication {
         t.setX(GameConfig.SCREEN_WIDTH / 2.0 - 180);
         t.setY(GameConfig.SCREEN_HEIGHT / 2.0);
         FXGL.getGameScene().getRoot().getChildren().add(t);
-        new Thread(() -> {
-            try { Thread.sleep(1500); } catch (Exception ignored) {}
-            javafx.application.Platform.runLater(() -> {
-                FXGL.getGameScene().getRoot().getChildren().remove(t);
-                startFloor();
-            });
-        }).start();
+        var pause = new PauseTransition(Duration.seconds(1.5));
+        pause.setOnFinished(e -> {
+            FXGL.getGameScene().getRoot().getChildren().remove(t);
+            startFloor();
+        });
+        pause.play();
     }
 
     private void showVictory() {
