@@ -5,8 +5,6 @@ import com.google.gson.GsonBuilder;
 import com.roguelike.core.Entity;
 import com.roguelike.entity.CombatStatsComponent;
 import com.roguelike.entity.HealthComponent;
-import com.roguelike.entity.ItemComponent;
-import com.roguelike.entity.PlayerComponent;
 import com.roguelike.entity.PositionComponent;
 
 import java.io.IOException;
@@ -17,15 +15,30 @@ import java.util.ArrayList;
 
 public class SaveManager {
 
-    private static final Path SAVE_DIR = Paths.get(System.getProperty("user.home"), ".roguelike-dungeon");
+    private static final Path SAVE_DIR = Paths.get(java.lang.System.getProperty("user.home"), ".roguelike-dungeon");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public static void save(Entity player, int floor, long seed, String slot) throws IOException {
+    public static void save(Entity player, int floor, long seed, int turns, int enemiesSlain,
+                            String equippedWeapon, java.util.List<SaveData.EnemyEntry> enemies,
+                            java.util.List<SaveData.WeaponEntry> groundWeapons,
+                            boolean ghostAlive, int ghostRoomX, int ghostRoomY, int ghostRoomW, int ghostRoomH,
+                            boolean ghostRoomLocked, String slot) throws IOException {
         Files.createDirectories(SAVE_DIR);
         var sd = new SaveData();
-        sd.timestamp = System.currentTimeMillis();
+        sd.timestamp = java.lang.System.currentTimeMillis();
         sd.floor = floor;
         sd.seed = seed;
+        sd.turns = turns;
+        sd.enemiesSlain = enemiesSlain;
+        sd.equippedWeapon = equippedWeapon;
+        sd.enemies = enemies;
+        sd.groundWeapons = groundWeapons;
+        sd.ghostAlive = ghostAlive;
+        sd.ghostRoomX = ghostRoomX;
+        sd.ghostRoomY = ghostRoomY;
+        sd.ghostRoomW = ghostRoomW;
+        sd.ghostRoomH = ghostRoomH;
+        sd.ghostRoomLocked = ghostRoomLocked;
 
         var pos = player.get(PositionComponent.class);
         var hp = player.get(HealthComponent.class);
@@ -49,6 +62,11 @@ public class SaveManager {
 
     public static boolean slotExists(String slot) {
         return Files.exists(SAVE_DIR.resolve(slot + ".json"));
+    }
+
+    public static void deleteSlot(String slot) throws IOException {
+        var path = SAVE_DIR.resolve(slot + ".json");
+        Files.deleteIfExists(path);
     }
 
     public static Path saveDir() { return SAVE_DIR; }

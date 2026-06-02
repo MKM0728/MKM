@@ -2,7 +2,8 @@ package com.roguelike.entity;
 
 public enum EnemyType {
     BAT(30, 30, 5, 0, 7, 8, 1.5, "RED", "bat"),
-    SKELETON(60, 60, 10, 2, 5, 12, 1.0, "PURPLE", "skeleton");
+    SKELETON(60, 60, 10, 2, 5, 12, 1.0, "PURPLE", "skeleton"),
+    GHOST(120, 120, 15, 0, 6, 25, 0.8, "WHITE", "ghost");
 
     private final int baseHp, maxBaseHp, baseAtk, baseDef, baseSpd, xpValue;
     private final double moveSpeed;

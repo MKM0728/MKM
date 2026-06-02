@@ -15,7 +15,7 @@ public final class MenuScreen {
 
     private MenuScreen() {}
 
-    public static void show(Runnable onNewGame, Runnable onContinue, Runnable onQuit) {
+    public static void show(Runnable onNewGame, Runnable onContinue, Runnable onQuit, boolean hasSave) {
         hide();
 
         var title = new Text("Roguelike Dungeon");
@@ -35,7 +35,7 @@ public final class MenuScreen {
             btn.setFont(Font.font("Monospaced", 18));
             btn.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-border-color: #555;");
         }
-        btnContinue.setDisable(true);
+        btnContinue.setDisable(!hasSave);
 
         btnNew.setOnAction(e -> onNewGame.run());
         btnContinue.setOnAction(e -> onContinue.run());

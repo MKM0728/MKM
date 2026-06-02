@@ -12,9 +12,12 @@ import com.roguelike.entity.*;
 import com.roguelike.map.DungeonGenerator;
 import com.roguelike.map.Tile;
 import com.roguelike.save.SaveManager;
+import com.roguelike.save.SaveData;
+import com.roguelike.save.SaveManager;
 import com.roguelike.ui.GameOverScreen;
 import com.roguelike.ui.HudOverlay;
 import com.roguelike.ui.MenuScreen;
+import com.roguelike.ui.SettingsPanel;
 
 import javafx.animation.PauseTransition;
 import javafx.animation.TranslateTransition;
@@ -32,6 +35,8 @@ import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import com.roguelike.map.Room;
 
 public class GameApp extends GameApplication {
 
@@ -65,6 +70,20 @@ public class GameApp extends GameApplication {
     private final List<WeaponDrop> groundWeapons = new ArrayList<>();
     private final List<Group> weaponDropGroups = new ArrayList<>();
     private HBox dpad;
+
+    // Ghost room lock
+    private Room ghostRoom;
+    private boolean ghostRoomLocked;
+    private record LockedDoor(int x, int y, Tile original) {}
+    private final List<LockedDoor> lockedDoors = new ArrayList<>();
+
+    // Direction hints
+    private Room currentRoom;
+    private Group arrowGroup;
+    private long autoSaveTimer;
+
+    // Settings button
+    private Button settingsBtn;
 
     private record WeaponDrop(int x, int y, WeaponType type) {}
 
@@ -149,6 +168,27 @@ public class GameApp extends GameApplication {
         dpad.setViewOrder(-9999);
         FXGL.getGameScene().getRoot().getChildren().add(dpad);
 
+        // Settings button (top-right)
+        settingsBtn = new Button("⚙");
+        settingsBtn.setFont(Font.font(20));
+        settingsBtn.setStyle("-fx-background-color: rgba(20,20,30,0.85); -fx-text-fill: #888; -fx-border-color: #555; -fx-border-width: 1; -fx-cursor: hand; -fx-min-width: 40; -fx-min-height: 40;");
+        settingsBtn.setTranslateX(GameConfig.SCREEN_WIDTH - 48);
+        settingsBtn.setTranslateY(6);
+        settingsBtn.setViewOrder(-12000);
+        settingsBtn.setOnAction(e -> {
+            if (SettingsPanel.isVisible()) {
+                SettingsPanel.hide();
+                if (state == GameState.PAUSED) { state = GameState.PLAYING; }
+            } else {
+                SettingsPanel.show(() -> { SettingsPanel.hide(); showMenu(); });
+                if (state == GameState.PLAYING) state = GameState.PAUSED;
+            }
+        });
+        FXGL.getGameScene().getRoot().getChildren().add(settingsBtn);
+
+        // Apply brightness effect
+        FXGL.getGameScene().getRoot().setEffect(SettingsPanel.getColorAdjust());
+
         showMenu();
     }
 
@@ -156,6 +196,10 @@ public class GameApp extends GameApplication {
     protected void onUpdate(double tpf) {
         if (dpad != null) dpad.toFront();
         if (hud != null) hud.toFront();
+        if (settingsBtn != null) settingsBtn.toFront();
+
+        if (state == GameState.PAUSED) return;
+
         if (state != GameState.PLAYING || animating) return;
 
         if (holdDir != null && playerMoves > 0) {
@@ -167,6 +211,10 @@ public class GameApp extends GameApplication {
             enemyTurns(); playerMoves = PLAYER_SPEED;
             renderAll(); updateHud(); checkState();
         }
+
+        // Auto-save every 10 seconds
+        autoSaveTimer++;
+        if (autoSaveTimer > 600) { autoSaveTimer = 0; autoSave(); }
     }
 
     // --- Pixel art ---
@@ -248,6 +296,36 @@ public class GameApp extends GameApplication {
                 g.fillRect(p * 3, p * 2, p * 5, p * 5); g.fillRect(p * 2, p * 3, p * 1, p * 3); g.fillRect(p * 8, p * 3, p * 1, p * 3);
                 if (alt) { g.fillRect(p * 3, p * 7, p * 2, p * 2); g.fillRect(p * 6, p * 7, p * 2, p * 1); }
                 else { g.fillRect(p * 3, p * 7, p * 2, p * 2); g.fillRect(p * 6, p * 7, p * 2, p * 2); }
+            }
+            case "ghost" -> {
+                // Translucent white ghost
+                g.setFill(Color.rgb(220, 230, 255, 0.7));
+                // Head
+                g.fillRect(p * 4, p * 1, p * 3, p * 2);
+                g.fillRect(p * 3, p * 2, p * 5, p * 1);
+                // Body
+                g.fillRect(p * 3, p * 3, p * 5, p * 4);
+                // Arms
+                g.fillRect(p * 1, p * 3, p * 2, p * 3);
+                g.fillRect(p * 8, p * 3, p * 2, p * 3);
+                // Eyes (dark hollow)
+                g.setFill(Color.rgb(60, 40, 80));
+                g.fillRect(p * 4, p * 2, p * 1, p * 1);
+                g.fillRect(p * 6, p * 2, p * 1, p * 1);
+                // Wavy bottom
+                g.setFill(Color.rgb(220, 230, 255, alt ? 0.5 : 0.7));
+                if (alt) {
+                    g.fillRect(p * 2, p * 7, p * 7, p * 2);
+                    g.fillRect(p * 3, p * 9, p * 5, p * 2);
+                    g.fillRect(p * 1, p * 7, p * 1, p * 1);
+                    g.fillRect(p * 9, p * 7, p * 1, p * 1);
+                } else {
+                    g.fillRect(p * 3, p * 7, p * 5, p * 3);
+                    g.fillRect(p * 4, p * 9, p * 3, p * 2);
+                }
+                // Glow
+                g.setFill(Color.rgb(200, 210, 255, 0.3));
+                g.fillRect(p * 2, p * 1, p * 7, p * 10);
             }
             default -> {
                 g.setFill(Color.rgb(80, 200, 80));
@@ -333,14 +411,19 @@ public class GameApp extends GameApplication {
     // --- Game flow ---
     private void showMenu() {
         state = GameState.MENU; GameOverScreen.hide(); hud.hide();
+        if (settingsBtn != null) settingsBtn.setVisible(false);
+        SettingsPanel.hide();
         worldGroup.setVisible(false);
-        MenuScreen.show(this::newGame, () -> loadGame("auto"), () -> FXGL.getGameController().exit());
+        boolean hasSave = SaveManager.slotExists("auto");
+        MenuScreen.show(this::newGame, () -> { loadGame("auto"); if (settingsBtn != null) settingsBtn.setVisible(true); }, () -> FXGL.getGameController().exit(), hasSave);
     }
 
     private void newGame() {
         MenuScreen.hide(); GameOverScreen.hide();
         seed = java.lang.System.currentTimeMillis(); floor = 1; turns = 0; enemiesSlain = 0;
         equippedWeapon = WeaponType.FISTS; refreshAttackFrame();
+        try { SaveManager.deleteSlot("auto"); } catch (Exception ignored) {}
+        if (settingsBtn != null) settingsBtn.setVisible(true);
         startFloor();
     }
 
@@ -349,6 +432,9 @@ public class GameApp extends GameApplication {
         enemies.clear(); enemyGroups.forEach(g -> worldGroup.getChildren().remove(g)); enemyGroups.clear();
         if (chestGroup != null) { worldGroup.getChildren().remove(chestGroup); chestGroup = null; }
         weaponDropGroups.forEach(g -> worldGroup.getChildren().remove(g)); weaponDropGroups.clear(); groundWeapons.clear();
+        ghostRoom = null; ghostRoomLocked = false; lockedDoors.clear();
+        if (arrowGroup != null) { worldGroup.getChildren().remove(arrowGroup); arrowGroup = null; }
+        currentRoom = null;
 
         generator = new DungeonGenerator(GameConfig.mapWidth(floor), GameConfig.mapHeight(floor), seed + floor);
         dungeon = generator.generate(GameConfig.MAX_BSP_DEPTH);
@@ -384,13 +470,41 @@ public class GameApp extends GameApplication {
 
     private void spawnEnemies() {
         int count = GameConfig.enemyCount(floor);
-        var types = EnemyType.values();
+        var regTypes = new EnemyType[]{EnemyType.BAT, EnemyType.SKELETON};
         for (int i = 0; i < count; i++) {
             int x, y;
             do { x = 2 + (int)(Math.random() * (GameConfig.mapWidth(floor) - 4)); y = 2 + (int)(Math.random() * (GameConfig.mapHeight(floor) - 4));
             } while (dungeon[y][x] != Tile.FLOOR || (x == playerX() && y == playerY()));
-            enemies.add(EnemyFactory.create(types[(int)(Math.random() * types.length)], x, y));
+            enemies.add(EnemyFactory.create(regTypes[(int)(Math.random() * regTypes.length)], x, y));
         }
+
+        // Spawn ghost in a mandatory room on the path to the chest
+        ghostRoom = findGhostRoom();
+        ghostRoomLocked = false;
+        lockedDoors.clear();
+        if (ghostRoom != null) {
+            int gx = ghostRoom.centerX(), gy = ghostRoom.centerY();
+            enemies.add(EnemyFactory.create(EnemyType.GHOST, gx, gy));
+        }
+    }
+
+    private Room findGhostRoom() {
+        // Find a room that's on the path from player start to chest
+        var rooms = generator.allRooms();
+        if (rooms.size() < 2) return null;
+        Room start = generator.startRoom();
+        int chestX = this.chestX, chestY = this.chestY;
+        // Pick a room midway between start and chest, not the start room
+        Room best = null;
+        double bestDist = Double.MAX_VALUE;
+        double midX = (start.centerX() + chestX) / 2.0;
+        double midY = (start.centerY() + chestY) / 2.0;
+        for (var r : rooms) {
+            if (r.equals(start)) continue;
+            double d = Math.abs(r.centerX() - midX) + Math.abs(r.centerY() - midY);
+            if (d < bestDist) { bestDist = d; best = r; }
+        }
+        return best;
     }
 
     // --- Player actions ---
@@ -400,6 +514,9 @@ public class GameApp extends GameApplication {
         if (ny < 0 || ny >= dungeon.length || nx < 0 || nx >= dungeon[0].length) return;
         if (dungeon[ny][nx] == Tile.STAIRS_DOWN) { floor++; startFloor(); return; }
         if (!dungeon[ny][nx].isWalkable()) return;
+
+        // Ghost room lock: prevent leaving the room while locked
+        if (ghostRoomLocked && !inGhostRoom(nx, ny) && inGhostRoom(playerX(), playerY())) return;
 
         // Check treasure chest
         if (chestGroup != null && chestGroup.isVisible() && chestX == nx && chestY == ny) {
@@ -433,13 +550,43 @@ public class GameApp extends GameApplication {
         var hp = enemy.get(HealthComponent.class);
         if (hp == null || !hp.isAlive()) return;
         setPlayerFrame(3);
-        playerGroup.setStyle("-fx-effect: dropshadow(gaussian, yellow, 10, 0.8, 0, 0);");
         int dmg = equippedWeapon.damage();
+        String fxColor, fxText;
+        switch (equippedWeapon) {
+            case FISTS -> {
+                fxColor = "yellow"; fxText = "-fx-effect: dropshadow(gaussian, yellow, 8, 0.7, 0, 0);";
+            }
+            case SICKLE -> {
+                fxColor = "silver"; fxText = "-fx-effect: dropshadow(gaussian, silver, 14, 0.9, 0, 0);";
+            }
+            case SWORD -> {
+                fxColor = "gold"; fxText = "-fx-effect: dropshadow(gaussian, gold, 16, 1.0, 0, 0);";
+            }
+            case AXE -> {
+                fxColor = "orangered"; fxText = "-fx-effect: dropshadow(gaussian, orangered, 22, 1.0, 0, 0);";
+                // Screen shake for axe
+                var root = FXGL.getGameScene().getRoot();
+                root.setTranslateX(4); root.setTranslateY(2);
+                new Thread(() -> {
+                    try { Thread.sleep(60); } catch (Exception ignored) {}
+                    javafx.application.Platform.runLater(() -> { root.setTranslateX(0); root.setTranslateY(0); });
+                }).start();
+            }
+            default -> {
+                fxColor = "white"; fxText = "-fx-effect: dropshadow(gaussian, white, 10, 0.8, 0, 0);";
+            }
+        }
+        playerGroup.setStyle(fxText);
         hp.takeDamage(dmg);
         playerMoves--; turns++;
-        showFloatingText(nx, ny, "-" + dmg);
+        showFloatingText(nx, ny, "-" + dmg, fxColor);
         if (hp != null && !hp.isAlive()) {
             enemiesSlain++;
+            var ec = enemy.get(EnemyComponent.class);
+            // Ghost check: unlock room on death
+            if (ec != null && ec.type() == EnemyType.GHOST && ghostRoomLocked) {
+                unlockGhostRoom();
+            }
             tryDropWeapon(nx, ny, enemy);
         }
         new Thread(() -> {
@@ -463,6 +610,7 @@ public class GameApp extends GameApplication {
             player.get(PositionComponent.class).set(nx, ny);
             visible = fov.compute(dungeon, nx, ny); markExplored();
             playerMoves--; turns++;
+            checkRoomChange(nx, ny);
             renderAll();
             animating = false;
             if (holdDir == null) setPlayerFrame(0);
@@ -470,11 +618,75 @@ public class GameApp extends GameApplication {
         anim.play();
     }
 
+    private void checkRoomChange(int px, int py) {
+        Room newRoom = generator.roomAt(px, py);
+        if (newRoom != null && !newRoom.equals(currentRoom)) {
+            currentRoom = newRoom;
+            showDirectionHint();
+            // Ghost room entry check
+            if (ghostRoom != null && ghostRoom.equals(newRoom) && !ghostRoomLocked) {
+                lockGhostRoom();
+            }
+        }
+    }
+
+    private void showDirectionHint() {
+        if (chestGroup == null) return;
+        int dir = chestDirection(playerX(), playerY());
+        String[] dirNames = {"Up", "Down", "Left", "Right"};
+        showFloatingText(playerX(), playerY(), "→ " + dirNames[dir >= 0 ? dir : 0], "gold");
+    }
+
+    private void lockGhostRoom() {
+        if (ghostRoom == null) return;
+        ghostRoomLocked = true;
+        // Lock room exits by finding corridor tiles adjacent to the room
+        int rx = ghostRoom.x(), ry = ghostRoom.y(), rw = ghostRoom.width(), rh = ghostRoom.height();
+        for (int y = ry; y < ry + rh; y++) {
+            for (int x = rx; x < rx + rw; x++) {
+                // Check 4-neighbor tiles outside the room
+                for (int[] d : new int[][]{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}) {
+                    int nx = x + d[0], ny = y + d[1];
+                    if (ny < 0 || ny >= dungeon.length || nx < 0 || nx >= dungeon[0].length) continue;
+                    // If outside room and walkable (corridor), block it
+                    if ((nx < rx || nx >= rx + rw || ny < ry || ny >= ry + rh)
+                        && (dungeon[ny][nx] == Tile.CORRIDOR || dungeon[ny][nx] == Tile.DOOR)) {
+                        lockedDoors.add(new LockedDoor(nx, ny, dungeon[ny][nx]));
+                        dungeon[ny][nx] = Tile.WALL;
+                    }
+                }
+            }
+        }
+        showFloatingText(playerX(), playerY(), "LOCKED!", "white");
+    }
+
+    private void unlockGhostRoom() {
+        ghostRoomLocked = false;
+        for (var ld : lockedDoors) {
+            if (ld.y >= 0 && ld.y < dungeon.length && ld.x >= 0 && ld.x < dungeon[0].length) {
+                dungeon[ld.y][ld.x] = ld.original;
+            }
+        }
+        lockedDoors.clear();
+        showFloatingText(playerX(), playerY(), "UNLOCKED!", "lime");
+    }
+
+    private boolean inGhostRoom(int x, int y) {
+        if (ghostRoom == null) return false;
+        return x >= ghostRoom.x() && x < ghostRoom.x() + ghostRoom.width()
+            && y >= ghostRoom.y() && y < ghostRoom.y() + ghostRoom.height();
+    }
+
     private void showFloatingText(int mx, int my, String text) {
+        showFloatingText(mx, my, text, "yellow");
+    }
+
+    private void showFloatingText(int mx, int my, String text, String colorName) {
         int sx = mx - (playerX() - COLS / 2), sy = my - (playerY() - ROWS / 2);
         javafx.application.Platform.runLater(() -> {
             var t = new javafx.scene.text.Text(text);
-            t.setFont(Font.font("Monospaced", FontWeight.BOLD, 14)); t.setFill(Color.YELLOW);
+            t.setFont(Font.font("Monospaced", FontWeight.BOLD, 14));
+            t.setFill(Color.valueOf(colorName));
             t.setX(sx * TILESIZE + 4); t.setY(sy * TILESIZE - 6);
             worldGroup.getChildren().add(t);
             new Thread(() -> {
@@ -547,6 +759,33 @@ public class GameApp extends GameApplication {
                 weaponDropGroups.get(i).setVisible(false);
             }
         }
+
+        // Direction arrow hint
+        updateArrowHint(ox, oy);
+    }
+
+    private void updateArrowHint(int ox, int oy) {
+        if (arrowGroup != null) { worldGroup.getChildren().remove(arrowGroup); arrowGroup = null; }
+        if (chestGroup == null || !chestGroup.isVisible()) return;
+        int dir = chestDirection(playerX(), playerY());
+        if (dir < 0) return;
+        // Show arrow near player
+        char[] arrows = {'▲', '▼', '◀', '▶'};
+        int[][] offsets = {{0, -2}, {0, 2}, {-2, 0}, {2, 0}};
+        var t = new javafx.scene.text.Text(String.valueOf(arrows[dir]));
+        t.setFont(Font.font("Monospaced", FontWeight.BOLD, 16));
+        t.setFill(Color.rgb(255, 215, 0, 0.8));
+        int sx = COLS / 2 + offsets[dir][0], sy = ROWS / 2 + offsets[dir][1];
+        t.setX(sx * TILESIZE + 10); t.setY(sy * TILESIZE + 24);
+        arrowGroup = new Group(t);
+        worldGroup.getChildren().add(arrowGroup);
+    }
+
+    private int chestDirection(int fx, int fy) {
+        if (chestGroup == null) return -1;
+        int dx = chestX - fx, dy = chestY - fy;
+        if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 3 : 2;
+        else return dy > 0 ? 1 : 0;
     }
 
     private void markExplored() {
@@ -633,12 +872,17 @@ public class GameApp extends GameApplication {
     private void tryDropWeapon(int x, int y, Entity enemy) {
         var ec = enemy.get(EnemyComponent.class);
         if (ec == null) return;
-        if (Math.random() > 0.4) return; // 40% drop rate
+        double dropRate = ec.type() == EnemyType.GHOST ? 0.6 : 0.4;
+        if (Math.random() > dropRate) return;
         WeaponType drop;
         if (ec.type() == EnemyType.BAT) {
             drop = Math.random() < 0.5 ? WeaponType.SICKLE : WeaponType.SWORD;
-        } else {
+        } else if (ec.type() == EnemyType.SKELETON) {
             drop = Math.random() < 0.5 ? WeaponType.SWORD : WeaponType.AXE;
+        } else {
+            // Ghost drops any weapon randomly
+            var weapons = new WeaponType[]{WeaponType.SICKLE, WeaponType.SWORD, WeaponType.AXE};
+            drop = weapons[(int)(Math.random() * weapons.length)];
         }
         groundWeapons.add(new WeaponDrop(x, y, drop));
         var g = new Group(makeWeaponSprite(drop));
@@ -655,19 +899,107 @@ public class GameApp extends GameApplication {
     }
 
     // --- Save/Load ---
-    private void loadGame(String s) { try { var d = SaveManager.load(s); if (d == null) { newGame(); return; } floor = d.floor; seed = d.seed; startFloor(); player.get(PositionComponent.class).set(d.playerX, d.playerY); player.get(HealthComponent.class).takeDamage(player.get(HealthComponent.class).hp() - d.playerHp); } catch (Exception ex) { newGame(); } }
+    private void loadGame(String s) {
+        try {
+            var d = SaveManager.load(s);
+            if (d == null) { newGame(); return; }
+            floor = d.floor; seed = d.seed;
+            turns = d.turns; enemiesSlain = d.enemiesSlain;
+            if (d.equippedWeapon != null) {
+                try { equippedWeapon = WeaponType.valueOf(d.equippedWeapon); } catch (Exception ex) { equippedWeapon = WeaponType.FISTS; }
+                refreshAttackFrame();
+            }
+            startFloor();
+            player.get(PositionComponent.class).set(d.playerX, d.playerY);
+            var php = player.get(HealthComponent.class);
+            php.takeDamage(php.hp() - d.playerHp);
+            // Restore enemies
+            if (d.enemies != null) {
+                for (int i = 0; i < d.enemies.size() && i < enemies.size(); i++) {
+                    var ee = d.enemies.get(i);
+                    if (!ee.alive && i < enemies.size()) {
+                        enemies.get(i).get(HealthComponent.class).takeDamage(999);
+                    }
+                }
+            }
+            // Restore ground weapons
+            if (d.groundWeapons != null) {
+                for (var we : d.groundWeapons) {
+                    try {
+                        var wt = WeaponType.valueOf(we.type);
+                        groundWeapons.add(new WeaponDrop(we.x, we.y, wt));
+                        var g = new Group(makeWeaponSprite(wt));
+                        g.setVisible(false);
+                        weaponDropGroups.add(g);
+                        worldGroup.getChildren().add(g);
+                    } catch (Exception ex) {}
+                }
+            }
+            // Restore ghost state
+            if (d.ghostRoomX > 0 && d.ghostRoomY > 0) {
+                ghostRoom = new Room(d.ghostRoomX, d.ghostRoomY, d.ghostRoomW, d.ghostRoomH);
+                if (d.ghostRoomLocked) {
+                    // Re-lock the room
+                    ghostRoomLocked = false;
+                    lockGhostRoom();
+                }
+            }
+            updateHud();
+            autoSave();
+        } catch (Exception ex) { newGame(); }
+    }
+
+    private void autoSave() {
+        if (state != GameState.PLAYING || player == null) return;
+        try {
+            var enemyEntries = new ArrayList<SaveData.EnemyEntry>();
+            for (var e : enemies) {
+                var ee = new SaveData.EnemyEntry();
+                var ec = e.get(EnemyComponent.class);
+                var ep = e.get(PositionComponent.class);
+                var hp = e.get(HealthComponent.class);
+                ee.type = ec != null ? ec.type().name() : "UNKNOWN";
+                ee.x = ep != null ? ep.x() : 0;
+                ee.y = ep != null ? ep.y() : 0;
+                ee.hp = hp != null ? hp.hp() : 0;
+                ee.alive = hp != null && hp.isAlive();
+                enemyEntries.add(ee);
+            }
+            var weaponEntries = new ArrayList<SaveData.WeaponEntry>();
+            for (var wd : groundWeapons) {
+                var we = new SaveData.WeaponEntry();
+                we.type = wd.type().name();
+                we.x = wd.x(); we.y = wd.y();
+                weaponEntries.add(we);
+            }
+            SaveManager.save(player, floor, seed, turns, enemiesSlain,
+                equippedWeapon.name(), enemyEntries, weaponEntries,
+                !ghostRoomLocked || enemies.stream().anyMatch(e -> {
+                    var ec = e.get(EnemyComponent.class);
+                    return ec != null && ec.type() == EnemyType.GHOST && e.get(HealthComponent.class).isAlive();
+                }),
+                ghostRoom != null ? ghostRoom.x() : 0,
+                ghostRoom != null ? ghostRoom.y() : 0,
+                ghostRoom != null ? ghostRoom.width() : 0,
+                ghostRoom != null ? ghostRoom.height() : 0,
+                ghostRoomLocked, "auto");
+        } catch (Exception ignored) {}
+    }
 
     private void collectChest() {
         worldGroup.getChildren().remove(chestGroup);
         chestGroup = null;
-        holdDir = null; // clear any held direction
+        holdDir = null;
         if (floor >= GameConfig.MAX_FLOORS) {
             state = GameState.GAME_OVER;
             hud.hide(); worldGroup.setVisible(false);
+            if (settingsBtn != null) settingsBtn.setVisible(false);
+            try { SaveManager.deleteSlot("auto"); } catch (Exception ignored) {}
             showVictory();
         } else {
-            state = GameState.MENU; // block game loop during transition
+            state = GameState.MENU;
             floor++;
+            autoSave();
             worldGroup.setVisible(false);
             showFloorTransition();
         }
@@ -703,10 +1035,11 @@ public class GameApp extends GameApplication {
         btn.setStyle("-fx-background-color: #333; -fx-text-fill: #eee; -fx-font-size: 16;");
         btn.setOnAction(e -> { FXGL.getGameScene().getRoot().getChildren().remove(box); newGame(); });
         box.getChildren().addAll(title, stats, btn);
+        if (settingsBtn != null) settingsBtn.setVisible(false);
         FXGL.getGameScene().getRoot().getChildren().add(box);
     }
 
-    private void gameOver() { state = GameState.GAME_OVER; hud.hide(); worldGroup.setVisible(false); GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu); }
+    private void gameOver() { state = GameState.GAME_OVER; hud.hide(); worldGroup.setVisible(false); if (settingsBtn != null) settingsBtn.setVisible(false); try { SaveManager.deleteSlot("auto"); } catch (Exception ignored) {} GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu); }
     private void checkState() { if (!player.get(HealthComponent.class).isAlive()) gameOver(); }
     private void updateHud() { var hp = player.get(HealthComponent.class); hud.update(hp.hp(), hp.maxHp(), floor, turns, equippedWeapon.label()); }
     private int playerX() { return player.get(PositionComponent.class).x(); }

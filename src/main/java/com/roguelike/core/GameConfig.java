@@ -28,4 +28,5 @@ public final class GameConfig {
     public static final int FOV_RADIUS = 8;
 
     public static int enemyCount(int floor) { return 6 + (int)(6 * 0.5 * (floor - 1)); }
+    public static int ghostCount() { return 1; }
 }

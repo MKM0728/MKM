@@ -10,7 +10,7 @@ class MenuScreenTest {
     void menuScreenDoesNotThrow() {
         assertDoesNotThrow(() -> {
             // verify static factory method exists
-            var method = MenuScreen.class.getMethod("show", Runnable.class, Runnable.class, Runnable.class);
+            var method = MenuScreen.class.getMethod("show", Runnable.class, Runnable.class, Runnable.class, boolean.class);
             assertNotNull(method);
         });
     }
