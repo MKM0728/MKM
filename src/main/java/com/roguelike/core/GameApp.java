@@ -281,6 +281,7 @@ public class GameApp extends GameApplication {
     }
 
     private void startFloor() {
+        holdDir = null; animating = false;
         enemies.clear(); enemyGroups.forEach(g -> worldGroup.getChildren().remove(g)); enemyGroups.clear();
         if (chestGroup != null) { worldGroup.getChildren().remove(chestGroup); chestGroup = null; }
 
