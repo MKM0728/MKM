@@ -1,63 +1,95 @@
 package com.roguelike.ui;
 
 import com.almasb.fxgl.dsl.FXGL;
+import javafx.scene.Group;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 
 public final class HudOverlay {
 
+    private final Group group;
+    private final Rectangle bg;
     private final Text hpText;
     private final Text weaponText;
     private final Text floorText;
     private final Text turnText;
 
     public HudOverlay() {
+        group = new Group();
+
+        // Background panel
+        bg = new Rectangle(185, 72);
+        bg.setArcWidth(10);
+        bg.setArcHeight(10);
+        bg.setFill(Color.rgb(10, 10, 20, 0.85));
+        bg.setStroke(Color.rgb(80, 80, 100, 0.7));
+        bg.setStrokeWidth(1.5);
+
         hpText = new Text();
         weaponText = new Text();
         floorText = new Text();
         turnText = new Text();
 
-        for (var t : new Text[]{hpText, weaponText, floorText, turnText}) {
-            t.setFont(Font.font("Monospaced", 15));
-            t.setFill(Color.WHITE);
-        }
+        Font f = Font.font("Monospaced", FontWeight.BOLD, 13);
 
-        hpText.setTranslateX(10);
-        hpText.setTranslateY(20);
+        hpText.setFont(f);
         hpText.setFill(Color.LIMEGREEN);
+        hpText.setX(8);
+        hpText.setY(16);
 
-        weaponText.setTranslateX(10);
-        weaponText.setTranslateY(40);
+        weaponText.setFont(f);
         weaponText.setFill(Color.GOLD);
+        weaponText.setX(8);
+        weaponText.setY(34);
 
-        floorText.setTranslateX(10);
-        floorText.setTranslateY(60);
+        floorText.setFont(f);
+        floorText.setFill(Color.WHITE);
+        floorText.setX(8);
+        floorText.setY(52);
 
-        turnText.setTranslateX(FXGL.getAppWidth() - 160);
-        turnText.setTranslateY(25);
+        turnText.setFont(Font.font("Monospaced", FontWeight.BOLD, 13));
+        turnText.setFill(Color.rgb(180, 180, 200));
+        turnText.setX(FXGL.getAppWidth() - 120);
+        turnText.setY(20);
 
-        var scene = FXGL.getGameScene();
-        scene.addUINode(hpText);
-        scene.addUINode(weaponText);
-        scene.addUINode(floorText);
-        scene.addUINode(turnText);
+        group.getChildren().addAll(bg, hpText, weaponText, floorText);
+        group.setTranslateX(6);
+        group.setTranslateY(6);
+        group.setViewOrder(-10000);
+
+        FXGL.getGameScene().getRoot().getChildren().add(group);
+        FXGL.getGameScene().getRoot().getChildren().add(turnText);
     }
 
     public void update(int hp, int maxHp, int floor, int turns, String weaponLabel) {
-        hpText.setText(String.format("HP: %d/%d", hp, maxHp));
+        hpText.setText(String.format("♥ HP: %d/%d", hp, maxHp));
         hpText.setFill(hp < maxHp * 0.3 ? Color.RED : Color.LIMEGREEN);
 
-        weaponText.setText(String.format("Weapon: %s", weaponLabel));
-        floorText.setText(String.format("Floor: %d", floor));
+        weaponText.setText(String.format("⚔ %s", weaponLabel));
+        floorText.setText(String.format("◆ Floor %d", floor));
         turnText.setText(String.format("Turns: %d", turns));
+
+        group.setVisible(true);
+        turnText.setVisible(true);
+        group.toFront();
+        turnText.toFront();
+    }
+
+    public void toFront() {
+        group.toFront();
+        turnText.toFront();
+    }
+
+    public void hide() {
+        group.setVisible(false);
+        turnText.setVisible(false);
     }
 
     public void remove() {
-        var scene = FXGL.getGameScene();
-        scene.removeUINode(hpText);
-        scene.removeUINode(weaponText);
-        scene.removeUINode(floorText);
-        scene.removeUINode(turnText);
+        FXGL.getGameScene().getRoot().getChildren().remove(group);
+        FXGL.getGameScene().getRoot().getChildren().remove(turnText);
     }
 }

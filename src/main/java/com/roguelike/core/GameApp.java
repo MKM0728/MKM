@@ -155,6 +155,7 @@ public class GameApp extends GameApplication {
     @Override
     protected void onUpdate(double tpf) {
         if (dpad != null) dpad.toFront();
+        if (hud != null) hud.toFront();
         if (state != GameState.PLAYING || animating) return;
 
         if (holdDir != null && playerMoves > 0) {
@@ -331,7 +332,7 @@ public class GameApp extends GameApplication {
 
     // --- Game flow ---
     private void showMenu() {
-        state = GameState.MENU; GameOverScreen.hide(); hud.remove();
+        state = GameState.MENU; GameOverScreen.hide(); hud.hide();
         worldGroup.setVisible(false);
         MenuScreen.show(this::newGame, () -> loadGame("auto"), () -> FXGL.getGameController().exit());
     }
@@ -662,7 +663,7 @@ public class GameApp extends GameApplication {
         holdDir = null; // clear any held direction
         if (floor >= GameConfig.MAX_FLOORS) {
             state = GameState.GAME_OVER;
-            hud.remove(); worldGroup.setVisible(false);
+            hud.hide(); worldGroup.setVisible(false);
             showVictory();
         } else {
             state = GameState.MENU; // block game loop during transition
@@ -705,7 +706,7 @@ public class GameApp extends GameApplication {
         FXGL.getGameScene().getRoot().getChildren().add(box);
     }
 
-    private void gameOver() { state = GameState.GAME_OVER; hud.remove(); worldGroup.setVisible(false); GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu); }
+    private void gameOver() { state = GameState.GAME_OVER; hud.hide(); worldGroup.setVisible(false); GameOverScreen.show(floor, enemiesSlain, turns, this::newGame, this::showMenu); }
     private void checkState() { if (!player.get(HealthComponent.class).isAlive()) gameOver(); }
     private void updateHud() { var hp = player.get(HealthComponent.class); hud.update(hp.hp(), hp.maxHp(), floor, turns, equippedWeapon.label()); }
     private int playerX() { return player.get(PositionComponent.class).x(); }
