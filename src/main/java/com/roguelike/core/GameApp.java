@@ -370,11 +370,13 @@ public class GameApp extends GameApplication {
         int fx = playerX(), fy = playerY();
         setPlayerFrame(playerFrameIdx == 1 ? 2 : 1);
         long dur = (long)(BASE_ANIM_MS / PLAYER_SPEED);
+        double startX = playerGroup.getTranslateX();
+        double startY = playerGroup.getTranslateY();
         var anim = new TranslateTransition(Duration.millis(dur), playerGroup);
-        anim.setFromX(0); anim.setFromY(0);
-        anim.setToX((nx - fx) * TILESIZE); anim.setToY((ny - fy) * TILESIZE);
+        anim.setFromX(startX); anim.setFromY(startY);
+        anim.setToX(startX + (nx - fx) * TILESIZE);
+        anim.setToY(startY + (ny - fy) * TILESIZE);
         anim.setOnFinished(e -> {
-            playerGroup.setTranslateX(0); playerGroup.setTranslateY(0);
             player.get(PositionComponent.class).set(nx, ny);
             visible = fov.compute(dungeon, nx, ny); markExplored();
             playerMoves--; turns++;
