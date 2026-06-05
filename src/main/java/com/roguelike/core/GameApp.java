@@ -20,7 +20,6 @@ import com.roguelike.ui.MenuScreen;
 import com.roguelike.ui.SettingsPanel;
 
 import javafx.animation.PauseTransition;
-import javafx.animation.TranslateTransition;
 import javafx.scene.Group;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -54,9 +53,10 @@ public class GameApp extends GameApplication {
     private long seed;
     private boolean[][] visible, explored;
     private int playerMoves;
-    private boolean animating;
     private int[] holdDir;
     private long lastMoveTime;
+    private boolean animating;
+    private int walkTick;
 
     private Group worldGroup;
     private Group playerGroup;
@@ -81,6 +81,7 @@ public class GameApp extends GameApplication {
     // Direction hints
     private Room currentRoom;
     private Group arrowGroup;
+    private Canvas guideCanvas;
     private long autoSaveTimer;
 
     // Settings button
@@ -92,7 +93,6 @@ public class GameApp extends GameApplication {
     private static final int COLS = GameConfig.SCREEN_WIDTH / TILESIZE;
     private static final int ROWS = GameConfig.SCREEN_HEIGHT / TILESIZE;
     private static final int PLAYER_SPEED = 2;
-    private static final int BASE_ANIM_MS = 100;
 
     @Override
     protected void initSettings(GameSettings s) {
@@ -118,7 +118,7 @@ public class GameApp extends GameApplication {
         tileRects = new Rectangle[ROWS][COLS];
         for (int y = 0; y < ROWS; y++)
             for (int x = 0; x < COLS; x++) {
-                var r = new Rectangle(TILESIZE - 1, TILESIZE - 1);
+                var r = new Rectangle(TILESIZE, TILESIZE);
                 r.setX(x * TILESIZE); r.setY(y * TILESIZE); r.setVisible(false);
                 tileRects[y][x] = r; worldGroup.getChildren().add(r);
             }
@@ -143,6 +143,12 @@ public class GameApp extends GameApplication {
         setPlayerScreenPos(COLS / 2, ROWS / 2);
 
         worldGroup.getChildren().add(playerGroup);
+
+        // Chest guide canvas (map markers)
+        guideCanvas = new Canvas(GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT);
+        guideCanvas.setMouseTransparent(true);
+        worldGroup.getChildren().add(guideCanvas);
+
         worldGroup.setVisible(false);
         FXGL.getGameScene().getRoot().getChildren().add(worldGroup);
 
@@ -546,6 +552,7 @@ public class GameApp extends GameApplication {
             }
         }
 
+        lastMoveTime = java.lang.System.currentTimeMillis();
         movePlayer(nx, ny);
     }
 
@@ -689,17 +696,32 @@ public class GameApp extends GameApplication {
         animating = true;
         int fx = playerX(), fy = playerY();
         int dx = nx - fx, dy = ny - fy;
-        double startX = playerGroup.getTranslateX();
-        double startY = playerGroup.getTranslateY();
-        int microSteps = 4;
-        long microDur = BASE_ANIM_MS / (PLAYER_SPEED * microSteps);
-        animateMicroStep(0, microSteps, dx, dy, startX, startY, microDur, nx, ny);
-    }
+        double centerX = (COLS / 2) * TILESIZE + 1;
+        double centerY = (ROWS / 2) * TILESIZE + 1;
+        long animMs = 150;
+        int frameChanges = 4;
 
-    private void animateMicroStep(int step, int total, int dx, int dy,
-                                   double startX, double startY, long microDur,
-                                   int nx, int ny) {
-        if (step >= total) {
+        var anim = new javafx.animation.Transition() {
+            { setCycleDuration(Duration.millis(animMs)); }
+            @Override
+            protected void interpolate(double frac) {
+                // Linear scroll — constant speed like real walking
+                double wox = -dx * TILESIZE * frac;
+                double woy = -dy * TILESIZE * frac;
+                worldGroup.setTranslateX(wox);
+                worldGroup.setTranslateY(woy);
+                // Body bob: 2 bounces per tile, fading at end
+                double bob = Math.sin(frac * Math.PI * 4) * 2 * (1 - frac);
+                playerGroup.setTranslateX(centerX - wox);
+                playerGroup.setTranslateY(centerY - woy + bob);
+                // Walk frame cycling
+                int frame = (int)(frac * frameChanges);
+                setPlayerFrame(1 + Math.min(frame, frameChanges - 1));
+            }
+        };
+
+        anim.setOnFinished(e -> {
+            worldGroup.setTranslateX(0); worldGroup.setTranslateY(0);
             player.get(PositionComponent.class).set(nx, ny);
             visible = fov.compute(dungeon, nx, ny); markExplored();
             playerMoves--; turns++;
@@ -707,17 +729,14 @@ public class GameApp extends GameApplication {
             renderAll();
             animating = false;
             if (holdDir == null) setPlayerFrame(0);
-            return;
-        }
-        // 4-frame walk cycle: 1,2,3,4,1,2,...
-        int walkFrame = 1 + (step % 4);
-        setPlayerFrame(walkFrame);
-        double progress = (double)(step + 1) / total;
-        var anim = new TranslateTransition(Duration.millis(microDur), playerGroup);
-        anim.setToX(startX + dx * TILESIZE * progress);
-        anim.setToY(startY + dy * TILESIZE * progress);
-        int next = step + 1;
-        anim.setOnFinished(e -> animateMicroStep(next, total, dx, dy, startX, startY, microDur, nx, ny));
+            if (playerMoves <= 0) {
+                enemyTurns(); playerMoves = PLAYER_SPEED;
+                renderAll(); updateHud(); checkState();
+            }
+            autoSaveTimer++;
+            if (autoSaveTimer > 600) { autoSaveTimer = 0; autoSave(); }
+        });
+
         anim.play();
     }
 
@@ -865,6 +884,10 @@ public class GameApp extends GameApplication {
 
         // Direction arrow hint
         updateArrowHint(ox, oy);
+
+        // Map guide markers toward chest
+        drawChestGuide(ox, oy);
+        guideCanvas.toFront();
     }
 
     private void updateArrowHint(int ox, int oy) {
@@ -889,6 +912,65 @@ public class GameApp extends GameApplication {
         int dx = chestX - fx, dy = chestY - fy;
         if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 3 : 2;
         else return dy > 0 ? 1 : 0;
+    }
+
+    private void drawChestGuide(int ox, int oy) {
+        if (chestGroup == null || animating) {
+            guideCanvas.getGraphicsContext2D().clearRect(0, 0, GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT);
+            return;
+        }
+        GraphicsContext g = guideCanvas.getGraphicsContext2D();
+        g.clearRect(0, 0, GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT);
+
+        int mw = GameConfig.mapWidth(floor), mh = GameConfig.mapHeight(floor);
+        int spacing = 4; // marker every N tiles
+
+        for (int sy = 0; sy < ROWS; sy += (spacing / 2)) {
+            for (int sx = (sy % spacing == 0 ? 0 : spacing / 2); sx < COLS; sx += spacing) {
+                int mx = ox + sx, my = oy + sy;
+                if (mx < 0 || mx >= mw || my < 0 || my >= mh) continue;
+                if (!explored[my][mx] || visible[my][mx]) continue;
+                if (!dungeon[my][mx].isWalkable()) continue;
+                if (mx == chestX && my == chestY) continue;
+
+                int cdx = chestX - mx, cdy = chestY - my;
+                double dist = Math.sqrt(cdx * cdx + cdy * cdy);
+                if (dist < 1.5) continue;
+
+                double ndx = cdx / dist, ndy = cdy / dist;
+                double scx = sx * TILESIZE + TILESIZE / 2.0;
+                double scy = sy * TILESIZE + TILESIZE / 2.0;
+
+                // Small golden triangle pointing toward chest
+                double tipX = scx + ndx * 10;
+                double tipY = scy + ndy * 10;
+                double leftX = scx - ndx * 4 + ndy * 3;
+                double leftY = scy - ndy * 4 - ndx * 3;
+                double rightX = scx - ndx * 4 - ndy * 3;
+                double rightY = scy - ndy * 4 + ndx * 3;
+
+                g.setFill(Color.rgb(255, 215, 0, 0.35));
+                g.fillPolygon(new double[]{tipX, leftX, rightX}, new double[]{tipY, leftY, rightY}, 3);
+            }
+        }
+
+        // Screen-edge chest marker when chest is explored but off-screen
+        if (explored[chestY][chestX] && !visible[chestY][chestX]) {
+            int cdx = chestX - (ox + COLS / 2), cdy = chestY - (oy + ROWS / 2);
+            // Find intersection with screen edge
+            double edgeX, edgeY;
+            if (cdx == 0 && cdy == 0) return;
+            double scaleX = (COLS / 2.0 - 1) / (double)Math.abs(cdx);
+            double scaleY = (ROWS / 2.0 - 1) / (double)Math.abs(cdy);
+            double scale = Math.min(scaleX, scaleY);
+            edgeX = (COLS / 2.0 + cdx * scale) * TILESIZE;
+            edgeY = (ROWS / 2.0 + cdy * scale) * TILESIZE;
+
+            g.setFill(Color.rgb(255, 215, 0, 0.7));
+            g.fillOval(edgeX - 6, edgeY - 6, 12, 12);
+            g.setFill(Color.rgb(200, 160, 0, 0.5));
+            g.fillOval(edgeX - 4, edgeY - 4, 8, 8);
+        }
     }
 
     private void markExplored() {

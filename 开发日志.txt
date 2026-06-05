@@ -1,4 +1,4 @@
-================================================================
+﻿================================================================
    Roguelike Dungeon — 赛博开发日志
    项目：2D像素风Roguelike地牢游戏
    仓库：github.com/MKM0728/MKM.git (分支: day01)
@@ -217,9 +217,57 @@
   - fatJar输出：roguelike-dungeon-0.1.0.jar
 
 [4.3] 游戏设定文档
-  - 文件：游戏设定.txt (Ver 0.2.0)
+  - 文件：游戏设定.txt (Ver 0.2.1)
   - 完整记录技术栈、画面参数、游戏机制、数据表格
   - 作为项目的"单一真相来源"
+
+
+
+================================================================
+  第五阶段：Git重组、武器强化、宝箱指引、移动平滑重构
+  日期：2026-06-05
+================================================================
+
+[5.1] Git仓库重组
+  - 合并day01→main后按要求回退，确立规则：
+    **以后没我的允许不要随便合并分支**
+  - 创建孤儿分支 local（与main历史完全独立）
+  - 配置SSH over 443解决GitHub 22端口被封:
+    Host github.com → Hostname ssh.github.com Port 443
+  - 清理多余文件：play.bat、jpackage bundle、error/hs_err日志
+  - .gitignore 新增 rules: *.log, logs/
+  - 远程：git@github.com:MKM0728/MKM.git (local分支)
+
+[5.2] 武器伤害全面强化
+  - 所有武器伤害+10：
+    拳头 FISTS:  5 → 15
+    镰刀 SICKLE: 10 → 20
+    宝剑 SWORD:  15 → 25
+    斧头 AXE:    30 → 40
+  - 文件：WeaponType.java
+
+[5.3] 宝箱地图指引系统
+  - 金色三角箭头指向宝箱方向（已探索非可见地面格上绘制）
+  - 屏幕边缘金色标记：宝箱在屏幕外时指示方向
+  - 实现：guideCanvas叠加层，drawChestGuide(ox, oy)
+
+[5.4] 移动平滑重构（第5次迭代）
+  - 问题演化：
+    ① TranslateTransition递归微步(4x12ms) → 链条间有缝隙→抖
+    ② 单Transition+Timeline分帧 → 动画把角色移离中心后renderAll
+       用setPlayerScreenPos()弹回→抖
+    ③ 游戏循环插值+每格camOffset → 600个矩形逐帧更新太重→抖
+    ④ 游戏循环+worldGroup平移+nanoTime+身体弹跳 → 计时精度→抖
+    ⑤ JavaFX Transition+worldGroup平移+身体弹跳+走路帧 → 当前方案
+  - 最终方案核心设计：
+    · javafx.animation.Transition.interpolate() — 与显示器刷新同步
+    · worldGroup.setTranslateX/Y() — 整个世界滚动而非角色移动
+    · playerGroup反偏移 — 始终保持在屏幕中心
+    · 身体弹跳：sin(frac*π*4)*2*(1-frac) — ±2px上下，每格2次弹跳，渐隐
+    · 走路帧：4帧/150ms，整除切帧
+    · 动画完成→worldGroup归零→Position更新→renderAll重绘
+  - 关键洞察：抖动根源是renderAll()把角色弹回中心→
+    改让世界滚动、角色不动
 
 
 ================================================================
@@ -270,8 +318,8 @@
   日期：2026-06-02
 ================================================================
 
-  版本：Ver 0.2.0
-  核心文件：GameApp.java (1052行)
+  版本：Ver 0.2.1
+  核心文件：GameApp.java (~1400行)
   总代码量：~60个Java文件 + 测试
   已实现功能：
     ✅ 三层关卡BSP地图生成
@@ -286,8 +334,55 @@
     ✅ 设置菜单(亮度调节)
     ✅ 全模块单元测试
     ✅ fatJar可运行构建
-  Git：github.com/MKM0728/MKM.git (day01分支)
+  Git：github.com/MKM0728/MKM.git (local分支（孤儿分支）)
   仓库状态：最后一次构建 fatJar 成功
+
+
+================================================================
+  第五阶段：Git重组、武器强化、宝箱指引、移动平滑重构
+  日期：2026-06-05
+================================================================
+
+[5.1] Git仓库重组
+  - 合并day01→main后按要求回退，确立规则：
+    **以后没我的允许不要随便合并分支**
+  - 创建孤儿分支 local（与main历史完全独立）
+  - 配置SSH over 443解决GitHub 22端口被封:
+    Host github.com → Hostname ssh.github.com Port 443
+  - 清理多余文件：play.bat、jpackage bundle、error/hs_err日志
+  - .gitignore 新增 rules: *.log, logs/
+  - 远程：git@github.com:MKM0728/MKM.git (local分支)
+
+[5.2] 武器伤害全面强化
+  - 所有武器伤害+10：
+    拳头 FISTS:  5 → 15
+    镰刀 SICKLE: 10 → 20
+    宝剑 SWORD:  15 → 25
+    斧头 AXE:    30 → 40
+  - 文件：WeaponType.java
+
+[5.3] 宝箱地图指引系统
+  - 金色三角箭头指向宝箱方向（已探索非可见地面格上绘制）
+  - 屏幕边缘金色标记：宝箱在屏幕外时指示方向
+  - 实现：guideCanvas叠加层，drawChestGuide(ox, oy)
+
+[5.4] 移动平滑重构（第5次迭代）
+  - 问题演化：
+    ① TranslateTransition递归微步(4x12ms) → 链条间有缝隙→抖
+    ② 单Transition+Timeline分帧 → 动画把角色移离中心后renderAll
+       用setPlayerScreenPos()弹回→抖
+    ③ 游戏循环插值+每格camOffset → 600个矩形逐帧更新太重→抖
+    ④ 游戏循环+worldGroup平移+nanoTime+身体弹跳 → 计时精度→抖
+    ⑤ JavaFX Transition+worldGroup平移+身体弹跳+走路帧 → 当前方案
+  - 最终方案核心设计：
+    · javafx.animation.Transition.interpolate() — 与显示器刷新同步
+    · worldGroup.setTranslateX/Y() — 整个世界滚动而非角色移动
+    · playerGroup反偏移 — 始终保持在屏幕中心
+    · 身体弹跳：sin(frac*π*4)*2*(1-frac) — ±2px上下，每格2次弹跳，渐隐
+    · 走路帧：4帧/150ms，整除切帧
+    · 动画完成→worldGroup归零→Position更新→renderAll重绘
+  - 关键洞察：抖动根源是renderAll()把角色弹回中心→
+    改让世界滚动、角色不动
 
 
 ================================================================
@@ -299,5 +394,6 @@
   2026-05-31       — 第三阶段：像素动画、攻击特效、移动手感优化
   2026-06-01       — 第三阶段续：微步系统、攻击反馈增强、Continue Bug修复
   2026-06-02       — 创建本日志文件
+  2026-06-05       — 第五阶段：Git重组、武器强化、宝箱指引、移动平滑重构
 
 ================================================================
