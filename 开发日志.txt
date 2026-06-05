@@ -1,0 +1,303 @@
+================================================================
+   Roguelike Dungeon — 赛博开发日志
+   项目：2D像素风Roguelike地牢游戏
+   仓库：github.com/MKM0728/MKM.git (分支: day01)
+================================================================
+
+【日志说明】
+  本文件记录项目从始至终的工作流程、设计决策、踩坑经验和灵感来源。
+  每次工作结束后追加当天的日志条目。
+  格式：日期 + 序号 + 标题 + 详细内容。
+
+
+================================================================
+  第一阶段：项目创立与架构搭建
+  日期：2026-05-29 左右
+================================================================
+
+[1.1] 项目构思
+  - 想法：用 Java + FXGL 做一个 2D 像素风 Roguelike 地牢游戏
+  - 技术选型：Java 17 + FXGL 17.3 + JavaFX 20 + Gradle 9.4.1
+  - 架构：ECS (Entity/Component/System) 模式
+  - 游戏分辨率：960x640，瓦片32x32，可视30x20格
+  - 灵感来源：经典像素Roguelike（如Pixel Dungeon）
+
+[1.2] 5-Agent 24/7 自动化开发工作流
+  - 设计了一套多智能体自动化开发系统：
+    - PM (项目经理)：协调任务分配
+    - Architect (架构师)：设计系统架构
+    - Developer A/B/C：分别负责不同模块开发
+  - 使用 Cron 定时任务驱动 agent 轮班工作
+  - 任务队列文件：.claude/tasks/task-queue.json
+  - 进度追踪：.claude/tasks/progress.md
+  - 想法：让多个 AI agent 像真实团队一样并行协作
+  - 经验：这套模式适合模块清晰、接口明确的项目
+
+[1.3] 项目结构设计
+  包结构：
+    com.roguelike.core      — 核心类（Entity, Component, System, GameApp）
+    com.roguelike.entity     — 实体组件（Position, Health, Combat, Enemy, Player, Item）
+    com.roguelike.map        — 地图系统（Tile, Room, BspNode, DungeonGenerator, CorridorBuilder）
+    com.roguelike.ai         — AI系统（PathFinder, BehaviorTree, FovSystem, AiState）
+    com.roguelike.combat     — 战斗系统（DamageCalculator, AttackSystem, TurnManager）
+    com.roguelike.ui         — UI系统（MenuScreen, GameOverScreen, HudOverlay, SettingsPanel）
+    com.roguelike.save       — 存档系统（SaveManager, SaveData）
+
+[1.4] 核心系统实现
+  - ECS架构落地：Entity 持有 Component 列表，SystemManager 驱动 System
+  - Entity 封装：PlayerComponent / EnemyComponent / ItemComponent 标记实体类型
+  - 属性组件：HealthComponent (血量)、CombatStatsComponent (攻防速)、PositionComponent (坐标)
+  - 渲染组件：RenderComponent 负责画面渲染
+
+[1.5] 地图生成系统
+  - 算法：BSP (Binary Space Partitioning)，递归深度5
+  - 三层地图比例 1:2:4：
+    第1层 30x20，第2层 60x40，第3层 120x80
+  - 最小房间尺寸：5格
+  - 走廊生成：
+    - BSP兄弟节点L型走廊（基础连接）
+    - 额外30%概率随机连接非兄弟房间（让地图四通八达）
+  - 瓦片类型：WALL / FLOOR / CORRIDOR / DOOR / STAIRS_DOWN / WATER
+  - 经验：BSP 是 Roguelike 地图生成的黄金标准，简单且效果自然
+
+[1.6] 敌人系统
+  - 三种敌人类型：
+    1. 红蝙蝠 (Bat)：30HP/5ATK/0DEF，飞行移动+扇翅动画
+    2. 紫骷髅 (Skeleton)：60HP/10ATK/2DEF，地面行走+走腿动画
+    3. 白幽灵 (Ghost)：120HP/15ATK/0DEF，飘浮+半透明，每层仅1只
+  - 楼层敌人数量 1:1.5:2 比例：(1F=7, 2F=10, 3F=13)
+  - 行为树AI：发现玩家→追击(if相邻→近战) | 低血量→逃跑 | 未发现→游荡
+  - PathFinder：A*寻路算法
+
+[1.7] 武器系统
+  - 四种武器：拳头(5伤害)、镰刀(10)、宝剑(15)、斧头(30)
+  - 掉落机制：蝙蝠40%掉镰刀/剑，骷髅40%掉剑/斧，幽灵60%全掉落
+  - 伤害计算：玩家攻敌=武器伤害(无视防御)，敌人攻玩家=ATK-玩家DEF
+  - 每种武器有不同的攻击特效颜色和持续时间
+
+[1.8] FOV视野系统
+  - 360度射线FOV，半径8格
+  - 未探索区域黑色遮盖
+  - 已探索但不在视线内的区域灰色调暗
+  - 使用 ColorAdjust 控制亮度
+
+
+================================================================
+  第二阶段：UI系统与游戏流程
+  日期：2026-05-30 左右
+================================================================
+
+[2.1] 主菜单系统
+  - 按钮：New Game / Continue / Exit
+  - Continue 按钮仅在有存档时启用
+  - 菜单用 JavaFX Group + Rectangle 实现，非 Scene 切换
+
+[2.2] 设置面板
+  - 入口：右上角齿轮按钮⚙
+  - 功能：亮度调节(-80%~+80%实时预览)、游戏指南、返回主菜单
+  - 亮度使用 ColorAdjust effect 实现
+  - 打开设置时游戏暂停（PAUSED状态）
+
+[2.3] 游戏指南
+  - 敌人介绍：血量/攻击/特性/掉落
+  - 武器介绍：伤害/特效/掉落来源
+  - 玩法说明：操作方式/目标/技巧
+
+[2.4] 状态栏HUD
+  - 左上：HP（<30%变红）、Weapon（金色）、Floor
+  - 右上：Turns回合数
+  - 使用JavaFX Text叠加在游戏画面上
+
+[2.5] 游戏结束画面
+  - 死亡：显示楼层/击杀/回合数 → Try Again / Main Menu
+  - 胜利：YOU WIN! + 统计 → Play Again
+
+[2.6] 宝箱与幽灵房间系统
+  - 宝箱像素：棕色箱体+金色盖子+金色锁+白色闪光
+  - 生成位置：远离出生点(>地图半对角线)，地面格，无敌人
+  - 拾取即通关（或过渡到下一层）
+  - 房间方向提示：金色箭头+浮动文字
+  - 幽灵房间封锁机制：
+    - 进入幽灵房间 → 所有出入口变墙 → "LOCKED!"
+    - 击杀幽灵 → 恢复瓦片 → "UNLOCKED!"
+    - 想法：这个机制创造了"锁门BOSS战"的紧张感
+
+[2.7] 存档系统
+  - 自动存档每10秒 + 楼层过渡 + 武器拾取后
+  - 格式：JSON (Gson)，位置 ~/.roguelike-dungeon/auto.json
+  - 保存内容：楼层/种子/玩家全状态/敌人/地面物品/幽灵封锁
+  - 注意：新游戏/死亡/通关时删除存档
+
+
+================================================================
+  第三阶段：像素动画与战斗手感
+  日期：2026-05-31 ~ 2026-06-01
+================================================================
+
+[3.1] 像素角色渲染系统
+  - 使用 32x32 Canvas 逐像素绘制角色
+  - 3px像素块，11x11精灵区域
+  - 6帧系统：
+    帧0：idle（双脚并拢站立）
+    帧1-4：行走循环（左腿迈→并拢→右腿迈→并拢）
+    帧5：攻击姿态（武器前举）
+  - 每种武器在攻击帧中显示不同像素图案：
+    镰刀：弯刀弧形+短柄 银灰色
+    宝剑：直刃+金色十字护手+棕色握柄
+    斧头：宽刃头+长柄 银灰色
+
+[3.2] 操作方式
+  - D-pad按钮（屏幕底部▲▼◀▶）：长按连续移动+攻击
+  - 鼠标点击相邻格：单步移动/攻击
+  - 设计考量：中文Windows IME可能拦截键盘输入，所以采用屏幕按钮+鼠标
+
+[3.3] 移动动画优化（第一版）
+  - 初始实现：TranslateTransition 150ms/步
+  - 问题：移动时角色"滑行"，缺少步行动画感
+  - 优化1：减少到 75ms/步 + 走路帧切换
+  - 问题：仍有滑行感，帧切换不够连贯
+
+[3.4] 微步动画系统（第二版）
+  - 想法：将1格移动拆成4个微步，每微步切一帧
+  - 参数：BASE_ANIM_MS=100, PLAYER_SPEED=2, microSteps=4
+  - 每微步时长：100/(2*4)=12ms
+  - 4帧行走循环：1→2→3→4→1→2→...
+  - 使用 TranslateTransition.setOnFinished 递归链式调用
+  - 效果：角色边走边切换腿姿，不再是滑行
+  - 经验：微步是2D像素游戏移动手感的通用解法
+
+[3.5] 攻击反馈系统
+  - 之前：移动到敌人格子→直接扣血，无视觉反馈
+  - 需求：挥剑/挥镰刀/挥斧头的真实表现
+  - 实现方案：
+    1. 挥砍弧线（3层Canvas渲染）：
+       - 主弧线：武器对应颜色 180°弧 (ArcType.OPEN)
+       - 运动拖尾：半透明 160°弧（跟在主弧线后面10°）
+       - 外层辉光：更半透明 190°弧（光晕效果）
+    2. 武器差异化：
+       拳头：黄色 2px线宽 150ms
+       镰刀：银蓝 3px线宽 180ms
+       宝剑：金色 4.5px线宽 220ms
+       斧头：橙红 6px线宽 300ms（最重）
+    3. 玩家前冲（Lunge）：向敌人方向突进0.45格
+    4. 敌人闪光：80ms白色方块叠加
+    5. 斧头额外屏幕震动：6px/3px, 80ms
+  - 经验：多层弧线+拖尾+辉光比单层效果丰富得多
+
+[3.6] Continue按钮Bug修复
+  - 问题：从主菜单点"继续游戏"后，菜单画面与游戏画面叠加
+  - 原因：loadGame() 只恢复了游戏状态，忘记隐藏 MenuScreen
+  - 修复：loadGame() 开头加 MenuScreen.hide() + GameOverScreen.hide()
+  - 教训：状态切换时必须清理所有可能的UI覆盖层
+
+[3.7] 移动长按响应优化
+  - 长按间隔：从120ms降至80ms
+  - 配合微步动画，长按移动更流畅
+
+
+================================================================
+  第四阶段：测试体系与项目规范
+================================================================
+
+[4.1] 单元测试覆盖
+  - 使用 JUnit 5 + assertDoesNotThrow 模式
+  - 测试覆盖模块：
+    - core: Entity, Component, GameState, SystemManager, GameConfig
+    - entity: Position, Health, CombatStats, PlayerFactory, EnemyFactory, ItemFactory
+    - map: Tile, BspNode, DungeonGenerator, CorridorBuilder
+    - ai: PathFinder, BehaviorTree, FovSystem
+    - combat: DamageCalculator, AttackSystem, TurnManager
+    - save: SaveManager
+    - ui: MenuScreen, GameOverScreen, HudOverlay, InventoryPanel
+
+[4.2] 构建配置
+  - Gradle 9.4.1 + fatJar
+  - JavaFX 平台分类器：win/mac/linux 自适应
+  - 依赖：FXGL 17.3, Gson 2.10.1, JUnit Jupiter 5.10.3
+  - fatJar输出：roguelike-dungeon-0.1.0.jar
+
+[4.3] 游戏设定文档
+  - 文件：游戏设定.txt (Ver 0.2.0)
+  - 完整记录技术栈、画面参数、游戏机制、数据表格
+  - 作为项目的"单一真相来源"
+
+
+================================================================
+  经验教训总结
+================================================================
+
+[经验1] ECS架构在Java中的实践
+  - Component用HashMap<Class, Component>存储在Entity中
+  - System通过SystemManager统一管理update调用
+  - 相比传统OOP继承链，ECS让敌人/玩家/物品共享组件更灵活
+  - 但Java的类型擦除让get(Class<T>)有时不够优雅
+
+[经验2] JavaFX动画的坑
+  - TranslateTransition 适合单次移动，不适合连续操作
+  - 使用 setOnFinished 递归比 Timeline 更可控
+  - Platform.runLater() 是JavaFX线程安全的关键
+  - 不要用 Thread.sleep 在JavaFX线程上——会卡UI
+  - 用 PauseTransition 做延迟，用新的Thread做异步回调
+
+[经验3] 像素艺术渲染
+  - Canvas逐像素绘制在运行时是可行的（32x32很小）
+  - GraphicsContext 的 strokeArc/ArcType.OPEN 是画弧线的好工具
+  - Color.deriveColor() 可以方便地做辉光/拖尾变体
+  - 多层叠加比单层渲染视觉效果好很多
+
+[经验4] 多Agent开发工作流
+  - 适用于模块边界清晰、接口稳定的项目
+  - 不适合需要频繁全局重构的阶段
+  - task-queue.json 作为任务调度中心很有价值
+  - 但agent的输出质量取决于prompt的质量
+
+[经验5] 游戏手感打磨
+  - 移动手感是 Roguelike 的核心体验
+  - 150ms→75ms→微步12ms，每一步优化都有明显提升
+  - "卡顿感"的根本原因是帧切换不够密
+  - 微步+帧循环是2D游戏的标准解法
+  - 攻击反馈的"重量感"来自：视觉特效+前冲+屏幕震动
+
+[经验6] 存档系统设计
+  - JSON格式便于调试和手动修改
+  - 自动存档间隔不宜太短（10秒合适）
+  - 存档删除时机要小心：新游戏/死亡/通关
+  - Continue按钮的可用状态必须与实际存档同步
+
+
+================================================================
+  当前项目状态
+  日期：2026-06-02
+================================================================
+
+  版本：Ver 0.2.0
+  核心文件：GameApp.java (1052行)
+  总代码量：~60个Java文件 + 测试
+  已实现功能：
+    ✅ 三层关卡BSP地图生成
+    ✅ 3种敌人+行为树AI+FOV视野
+    ✅ 4种武器+掉落+战斗伤害计算
+    ✅ 6帧像素角色动画+微步移动
+    ✅ 攻击挥砍特效(弧线+前冲+闪光+震动)
+    ✅ 宝箱收集+幽灵房间封锁+楼层过渡
+    ✅ 主菜单/设置/游戏指南/游戏结束UI
+    ✅ 自动存档/读档
+    ✅ HUD状态栏(HP/武器/楼层/回合)
+    ✅ 设置菜单(亮度调节)
+    ✅ 全模块单元测试
+    ✅ fatJar可运行构建
+  Git：github.com/MKM0728/MKM.git (day01分支)
+  仓库状态：最后一次构建 fatJar 成功
+
+
+================================================================
+  日志索引
+================================================================
+
+  2026-05-29 ~ 30 — 第一阶段：项目创立、ECS架构、地图生成、敌人/AI系统
+  2026-05-30       — 第二阶段：UI系统、游戏流程、宝箱/幽灵房间、存档
+  2026-05-31       — 第三阶段：像素动画、攻击特效、移动手感优化
+  2026-06-01       — 第三阶段续：微步系统、攻击反馈增强、Continue Bug修复
+  2026-06-02       — 创建本日志文件
+
+================================================================

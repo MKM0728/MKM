@@ -9,7 +9,7 @@ class HudOverlayTest {
     @Test
     void hudClassHasUpdateMethod() {
         assertDoesNotThrow(() -> {
-            var method = HudOverlay.class.getMethod("update", int.class, int.class, int.class, int.class);
+            var method = HudOverlay.class.getMethod("update", int.class, int.class, int.class, int.class, String.class);
             assertNotNull(method);
         });
     }

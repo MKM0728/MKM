@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 
 class SaveManagerTest {
 
@@ -30,7 +31,8 @@ class SaveManagerTest {
 
     @Test
     void saveAndLoadRoundTrip() throws IOException {
-        SaveManager.save(player, 3, 12345L, "test-slot");
+        SaveManager.save(player, 3, 12345L, 0, 0, "FISTS",
+            new ArrayList<>(), new ArrayList<>(), false, 0, 0, 0, 0, false, "test-slot");
         var data = SaveManager.load("test-slot");
         assertNotNull(data);
         assertEquals(5, data.playerX);
@@ -42,7 +44,8 @@ class SaveManagerTest {
 
     @Test
     void slotExistsAfterSave() throws IOException {
-        SaveManager.save(player, 1, 99L, "test-exists");
+        SaveManager.save(player, 1, 99L, 0, 0, "FISTS",
+            new ArrayList<>(), new ArrayList<>(), false, 0, 0, 0, 0, false, "test-exists");
         assertTrue(SaveManager.slotExists("test-exists"));
     }
 

@@ -1,5 +1,6 @@
 package com.roguelike.map;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -12,6 +13,7 @@ public class DungeonGenerator {
     private int stairsDownX, stairsDownY;
     private int stairsUpX, stairsUpY;
     private Room startRoom;
+    private final List<Room> allRooms = new ArrayList<>();
 
     public DungeonGenerator(int width, int height, long seed) {
         this.width = width;
@@ -22,6 +24,7 @@ public class DungeonGenerator {
 
     public Tile[][] generate(int bspDepth) {
         clearGrid();
+        allRooms.clear();
 
         var root = new BspNode(1, 1, width - 2, height - 2);
         root.splitRecursive(rng, bspDepth);
@@ -29,9 +32,26 @@ public class DungeonGenerator {
         var leaves = root.leaves();
         carveRooms(leaves);
         connectSiblings(root);
+        addExtraConnections(leaves);
 
         carveBorderWalls();
         return grid;
+    }
+
+    private void addExtraConnections(List<BspNode> leaves) {
+        // Connect nearby rooms that aren't siblings for better interconnectedness
+        List<Room> rooms = new ArrayList<>();
+        for (var leaf : leaves) {
+            if (leaf.room != null) rooms.add(leaf.room);
+        }
+        for (int i = 0; i < rooms.size(); i++) {
+            for (int j = i + 1; j < rooms.size(); j++) {
+                if (rng.nextDouble() < 0.3) {
+                    Room a = rooms.get(i), b = rooms.get(j);
+                    carveLCorridor(a.centerX(), a.centerY(), b.centerX(), b.centerY());
+                }
+            }
+        }
     }
 
     private void clearGrid() {
@@ -48,6 +68,7 @@ public class DungeonGenerator {
                 startRoom = leaf.room;
             }
             if (leaf.room != null) {
+                allRooms.add(leaf.room);
                 for (int y = leaf.room.y(); y < leaf.room.y() + leaf.room.height(); y++) {
                     for (int x = leaf.room.x(); x < leaf.room.x() + leaf.room.width(); x++) {
                         if (y >= 0 && y < height && x >= 0 && x < width) {
@@ -147,4 +168,12 @@ public class DungeonGenerator {
     public int stairsUpX() { return stairsUpX; }
     public int stairsUpY() { return stairsUpY; }
     public Room startRoom() { return startRoom; }
+    public List<Room> allRooms() { return allRooms; }
+
+    public Room roomAt(int x, int y) {
+        for (var r : allRooms) {
+            if (x >= r.x() && x < r.x() + r.width() && y >= r.y() && y < r.y() + r.height()) return r;
+        }
+        return null;
+    }
 }
