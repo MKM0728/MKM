@@ -28,6 +28,7 @@ import javafx.scene.control.Button;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.ArcType;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -91,7 +92,7 @@ public class GameApp extends GameApplication {
     private static final int COLS = GameConfig.SCREEN_WIDTH / TILESIZE;
     private static final int ROWS = GameConfig.SCREEN_HEIGHT / TILESIZE;
     private static final int PLAYER_SPEED = 2;
-    private static final int BASE_ANIM_MS = 150;
+    private static final int BASE_ANIM_MS = 100;
 
     @Override
     protected void initSettings(GameSettings s) {
@@ -126,10 +127,12 @@ public class GameApp extends GameApplication {
         playerGroup = new Group();
         int s = TILESIZE;
         playerFrames = new Canvas[]{
-            makePlayerFrame(false, false, false, WeaponType.FISTS),
-            makePlayerFrame(true, false, false, WeaponType.FISTS),
-            makePlayerFrame(false, true, false, WeaponType.FISTS),
-            makePlayerFrame(false, false, true, WeaponType.FISTS)
+            makePlayerFrame(false, false, false, WeaponType.FISTS),  // 0 idle
+            makePlayerFrame(true, false, false, WeaponType.FISTS),   // 1 walk L
+            makePlayerFrame(false, false, false, WeaponType.FISTS),  // 2 walk mid
+            makePlayerFrame(false, true, false, WeaponType.FISTS),   // 3 walk R
+            makePlayerFrame(false, false, false, WeaponType.FISTS),  // 4 walk mid
+            makePlayerFrame(false, false, true, WeaponType.FISTS)    // 5 attack
         };
         playerFrameIdx = 0;
         playerGroup.getChildren().add(playerFrames[0]);
@@ -204,7 +207,7 @@ public class GameApp extends GameApplication {
 
         if (holdDir != null && playerMoves > 0) {
             long now = java.lang.System.currentTimeMillis();
-            if (now - lastMoveTime > 120) { tryMove(holdDir[0], holdDir[1]); lastMoveTime = now; }
+            if (now - lastMoveTime > 80) { tryMove(holdDir[0], holdDir[1]); lastMoveTime = now; }
         }
 
         if (playerMoves <= 0) {
@@ -357,11 +360,11 @@ public class GameApp extends GameApplication {
     }
 
     private void refreshAttackFrame() {
-        Canvas old = playerFrames[3];
-        playerFrames[3] = makePlayerFrame(false, false, true, equippedWeapon);
-        if (playerFrameIdx == 3) {
+        Canvas old = playerFrames[5];
+        playerFrames[5] = makePlayerFrame(false, false, true, equippedWeapon);
+        if (playerFrameIdx == 5) {
             playerGroup.getChildren().remove(old);
-            playerGroup.getChildren().add(0, playerFrames[3]);
+            playerGroup.getChildren().add(0, playerFrames[5]);
         }
     }
 
@@ -549,8 +552,14 @@ public class GameApp extends GameApplication {
     private void attackEnemy(Entity enemy, int nx, int ny) {
         var hp = enemy.get(HealthComponent.class);
         if (hp == null || !hp.isAlive()) return;
-        setPlayerFrame(3);
+        setPlayerFrame(5);
         int dmg = equippedWeapon.damage();
+
+        // Play swing slash + lunge animation
+        int dx = nx - playerX(), dy = ny - playerY();
+        playSwingEffect(dx, dy);
+        flashEnemy(enemy);
+
         String fxColor, fxText;
         switch (equippedWeapon) {
             case FISTS -> {
@@ -566,9 +575,9 @@ public class GameApp extends GameApplication {
                 fxColor = "orangered"; fxText = "-fx-effect: dropshadow(gaussian, orangered, 22, 1.0, 0, 0);";
                 // Screen shake for axe
                 var root = FXGL.getGameScene().getRoot();
-                root.setTranslateX(4); root.setTranslateY(2);
+                root.setTranslateX(6); root.setTranslateY(3);
                 new Thread(() -> {
-                    try { Thread.sleep(60); } catch (Exception ignored) {}
+                    try { Thread.sleep(80); } catch (Exception ignored) {}
                     javafx.application.Platform.runLater(() -> { root.setTranslateX(0); root.setTranslateY(0); });
                 }).start();
             }
@@ -595,18 +604,102 @@ public class GameApp extends GameApplication {
         }).start();
     }
 
+    private void playSwingEffect(int dx, int dy) {
+        int arcSize = TILESIZE * 2;
+        Canvas arcCanvas = new Canvas(arcSize, arcSize);
+        GraphicsContext g = arcCanvas.getGraphicsContext2D();
+
+        Color arcColor;
+        double lineWidth, swingMs;
+        switch (equippedWeapon) {
+            case SICKLE -> {
+                arcColor = Color.rgb(180, 200, 240, 0.85);
+                lineWidth = 3; swingMs = 180;
+            }
+            case SWORD -> {
+                arcColor = Color.rgb(255, 220, 40, 0.85);
+                lineWidth = 4.5; swingMs = 220;
+            }
+            case AXE -> {
+                arcColor = Color.rgb(255, 70, 20, 0.9);
+                lineWidth = 6; swingMs = 300;
+            }
+            default -> {
+                arcColor = Color.rgb(255, 255, 140, 0.6);
+                lineWidth = 2; swingMs = 150;
+            }
+        }
+
+        // Main slash arc through attack direction
+        double startAngle = Math.toDegrees(Math.atan2(dy, dx)) - 90;
+        g.setStroke(arcColor);
+        g.setLineWidth(lineWidth);
+        g.strokeArc(4, 4, arcSize - 8, arcSize - 8, startAngle, 180, ArcType.OPEN);
+
+        // Motion trail (secondary arc)
+        g.setStroke(arcColor.deriveColor(0, 1, 1.5, 0.4));
+        g.setLineWidth(lineWidth * 0.5);
+        g.strokeArc(12, 12, arcSize - 24, arcSize - 24, startAngle + 10, 160, ArcType.OPEN);
+
+        // Arc glow (outer)
+        g.setStroke(arcColor.deriveColor(0, 1, 1.5, 0.2));
+        g.setLineWidth(lineWidth * 1.8);
+        g.strokeArc(2, 2, arcSize - 4, arcSize - 4, startAngle - 5, 190, ArcType.OPEN);
+
+        Group slashGroup = new Group(arcCanvas);
+        slashGroup.setTranslateX(playerGroup.getTranslateX() - arcSize / 2.0 + TILESIZE / 2.0);
+        slashGroup.setTranslateY(playerGroup.getTranslateY() - arcSize / 2.0 + TILESIZE / 2.0);
+        worldGroup.getChildren().add(slashGroup);
+
+        PauseTransition pt = new PauseTransition(Duration.millis(swingMs));
+        pt.setOnFinished(e -> worldGroup.getChildren().remove(slashGroup));
+        pt.play();
+
+        // Player lunge toward enemy
+        double origX = playerGroup.getTranslateX();
+        double origY = playerGroup.getTranslateY();
+        double lungeDist = TILESIZE * 0.45;
+        playerGroup.setTranslateX(origX + dx * lungeDist);
+        playerGroup.setTranslateY(origY + dy * lungeDist);
+
+        long lungeMs = (long)(swingMs * 0.35);
+        new Thread(() -> {
+            try { Thread.sleep(lungeMs); } catch (Exception ignored) {}
+            javafx.application.Platform.runLater(() -> {
+                playerGroup.setTranslateX(origX);
+                playerGroup.setTranslateY(origY);
+            });
+        }).start();
+    }
+
+    private void flashEnemy(Entity enemy) {
+        int idx = enemies.indexOf(enemy);
+        if (idx < 0 || idx >= enemyGroups.size()) return;
+        Group eg = enemyGroups.get(idx);
+        Rectangle flash = new Rectangle(TILESIZE - 2, TILESIZE - 2, Color.rgb(255, 255, 255, 0.55));
+        flash.setX(1); flash.setY(1);
+        eg.getChildren().add(flash);
+        new Thread(() -> {
+            try { Thread.sleep(80); } catch (Exception ignored) {}
+            javafx.application.Platform.runLater(() -> eg.getChildren().remove(flash));
+        }).start();
+    }
+
     private void movePlayer(int nx, int ny) {
         animating = true;
         int fx = playerX(), fy = playerY();
-        setPlayerFrame(playerFrameIdx == 1 ? 2 : 1);
-        long dur = (long)(BASE_ANIM_MS / PLAYER_SPEED);
+        int dx = nx - fx, dy = ny - fy;
         double startX = playerGroup.getTranslateX();
         double startY = playerGroup.getTranslateY();
-        var anim = new TranslateTransition(Duration.millis(dur), playerGroup);
-        anim.setFromX(startX); anim.setFromY(startY);
-        anim.setToX(startX + (nx - fx) * TILESIZE);
-        anim.setToY(startY + (ny - fy) * TILESIZE);
-        anim.setOnFinished(e -> {
+        int microSteps = 4;
+        long microDur = BASE_ANIM_MS / (PLAYER_SPEED * microSteps);
+        animateMicroStep(0, microSteps, dx, dy, startX, startY, microDur, nx, ny);
+    }
+
+    private void animateMicroStep(int step, int total, int dx, int dy,
+                                   double startX, double startY, long microDur,
+                                   int nx, int ny) {
+        if (step >= total) {
             player.get(PositionComponent.class).set(nx, ny);
             visible = fov.compute(dungeon, nx, ny); markExplored();
             playerMoves--; turns++;
@@ -614,7 +707,17 @@ public class GameApp extends GameApplication {
             renderAll();
             animating = false;
             if (holdDir == null) setPlayerFrame(0);
-        });
+            return;
+        }
+        // 4-frame walk cycle: 1,2,3,4,1,2,...
+        int walkFrame = 1 + (step % 4);
+        setPlayerFrame(walkFrame);
+        double progress = (double)(step + 1) / total;
+        var anim = new TranslateTransition(Duration.millis(microDur), playerGroup);
+        anim.setToX(startX + dx * TILESIZE * progress);
+        anim.setToY(startY + dy * TILESIZE * progress);
+        int next = step + 1;
+        anim.setOnFinished(e -> animateMicroStep(next, total, dx, dy, startX, startY, microDur, nx, ny));
         anim.play();
     }
 
@@ -900,6 +1003,7 @@ public class GameApp extends GameApplication {
 
     // --- Save/Load ---
     private void loadGame(String s) {
+        MenuScreen.hide(); GameOverScreen.hide();
         try {
             var d = SaveManager.load(s);
             if (d == null) { newGame(); return; }
